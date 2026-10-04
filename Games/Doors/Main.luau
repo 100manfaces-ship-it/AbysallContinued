@@ -15,7 +15,7 @@ getgenv().Abysall = {
     Legit = true
 }
 
-local BaseUrl = "https://raw.githubusercontent.com/therealcookiemonsterof1966/AbysallContinued/main/"
+local BaseUrl = "https://raw.githubusercontent.com/100manfaces-ship-it/AbysallContinued/Main.luau/"
 
 getgenv().Abysall = {
     Environment = loadstring(game:HttpGet(BaseUrl .. "Components/Environment.luau"))(),
@@ -166,7 +166,8 @@ local Objects = {
 	SeekNodes = {},
 	SeekDuckBoards = {},
 	SeekBridges = {},
-	PathLights = {}
+	PathLights = {},
+	Tables = {}
 }
 
 Globals.IncompatibleMessage = "Your executor doesn't support this feature."
@@ -3199,6 +3200,7 @@ Groupboxes.Visuals_ESP_Toggles:AddToggle("ChestESPToggle",      { Text = "Chests
 Groupboxes.Visuals_ESP_Toggles:AddToggle("ItemESPToggle",       { Text = "Items",        Default = false, Tooltip = "Highlights all collectable items/consumables." })
 Groupboxes.Visuals_ESP_Toggles:AddToggle("CurrencyESPToggle",   { Text = "Currency",     Default = false, Tooltip = "Highlights all currency that spawns." })
 Groupboxes.Visuals_ESP_Toggles:AddToggle("LadderESPToggle",     { Text = "Ladders",      Default = false, Tooltip = "Highlights ladders that can be used to disable the anticheat." })
+Groupboxes.Visuals_ESP_Toggles:AddToggle("TableESPToggle",      { Text = "Tables",       Default = false, Tooltip = "Highlights tables in rooms 0-101." })
 Groupboxes.Visuals_ESP_Toggles:AddDivider()
 Groupboxes.Visuals_ESP_Toggles:AddDropdown("EntityESPOptions",     { 
 	Text = "Entity List",
@@ -3215,6 +3217,7 @@ Toggles.ChestESPToggle:AddColorPicker("ChestESPColor",         { Text = "Chests"
 Toggles.ItemESPToggle:AddColorPicker("ItemESPColor",           { Text = "Items",        Default = Color3.fromRGB(170, 0, 255),   Transparency = 0 })
 Toggles.CurrencyESPToggle:AddColorPicker("CurrencyESPColor",   { Text = "Currency",     Default = Color3.fromRGB(255, 255, 0),   Transparency = 0 })
 Toggles.LadderESPToggle:AddColorPicker("LadderESPColor",       { Text = "Ladders",      Default = Color3.fromRGB(255, 255, 255), Transparency = 0 })
+Toggles.TableESPToggle:AddColorPicker("TableESPColor",         { Text = "Tables",       Default = Color3.fromRGB(255, 140, 0),   Transparency = 0 })
 Toggles.EntityESPToggle:AddColorPicker("EntityESPColor",       { Text = "Entities",     Default = Color3.fromRGB(255, 0, 0),     Transparency = 0 })
 
 local HidingSpotLabels = {
@@ -3381,6 +3384,19 @@ Toggles.LadderESPToggle:OnChanged(function(Value)
 end)
 Options.LadderESPColor:OnChanged(function(Value)
 	for _, Object in Objects.Ladders do Abysall.ESPLibrary:UpdateObjectColor(Object, Value) end
+end)
+
+Toggles.TableESPToggle:OnChanged(function(Value)
+	for _, Object in Objects.Tables do
+		if Value then
+			Functions.AddESP({ Object = Object, Text = "Table", Color = Options.TableESPColor.Value }, true)
+		else
+			Functions.RemoveESP(Object)
+		end
+	end
+end)
+Options.TableESPColor:OnChanged(function(Value)
+	for _, Object in Objects.Tables do Abysall.ESPLibrary:UpdateObjectColor(Object, Value) end
 end)
 
 Groupboxes.Visuals_ESP_Settings:AddToggle("ESPRainbow",     { Text = "Rainbow Effect", Default = false, Tooltip = "Makes the esp objects change colour like a rainbow." })
@@ -4812,6 +4828,14 @@ Functions.HandleObject = function(Object)
 	elseif Name == "Ladder" then
 		if Toggles.LadderESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Ladder", Color = Options.LadderESPColor.Value }, true) end
 		table.insert(Objects.Ladders, Object)
+	elseif Name == "Table" then
+		local RoomNumber = tonumber(Object:GetAttribute("ParentRoom"))
+		if RoomNumber and RoomNumber >= 0 and RoomNumber <= 101 and (Object:IsA("Model") or Object:IsA("BasePart")) then
+			if Toggles.TableESPToggle.Value then
+				Functions.AddESP({ Object = Object, Text = "Table", Color = Options.TableESPColor.Value }, true)
+			end
+			table.insert(Objects.Tables, Object)
+		end
 	elseif Name == "Door" and Object.Parent and tonumber(Object.Parent.Name) then
 		local DoorParts = {}
 		for _, Child in Object:GetChildren() do
@@ -5423,7 +5447,7 @@ local AllowedInstances = {
 	GardenGateButton=true, LotusPetalPickup=true, VineGuillotine=true, LiveEntityBramble=true, ArchivesFihTank=true,
 	RiftSpawn=true, ElevatorBreaker=true, RunnerNodes=true, PathLights=true, DuckBoard=true,
 	Padlock=true, EyestalkEndCutscene=true, MinecartRig=true, SeekMovingNewClone=true, Cellar=true, ArchivesPackageDeposit=true, SalvageChute=true,
-	StairwellFireAlarm=true, ShoppingCart=true
+	StairwellFireAlarm=true, ShoppingCart=true, Table=true
 }
 
 Functions.QueueObject = function(Object)
