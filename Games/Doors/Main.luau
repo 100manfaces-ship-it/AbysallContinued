@@ -3200,7 +3200,7 @@ Groupboxes.Visuals_ESP_Toggles:AddToggle("ChestESPToggle",      { Text = "Chests
 Groupboxes.Visuals_ESP_Toggles:AddToggle("ItemESPToggle",       { Text = "Items",        Default = false, Tooltip = "Highlights all collectable items/consumables." })
 Groupboxes.Visuals_ESP_Toggles:AddToggle("CurrencyESPToggle",   { Text = "Currency",     Default = false, Tooltip = "Highlights all currency that spawns." })
 Groupboxes.Visuals_ESP_Toggles:AddToggle("LadderESPToggle",     { Text = "Ladders",      Default = false, Tooltip = "Highlights ladders that can be used to disable the anticheat." })
-Groupboxes.Visuals_ESP_Toggles:AddToggle("TableESPToggle",      { Text = "Tables",       Default = false, Tooltip = "Highlights tables in rooms 0-101." })
+Groupboxes.Visuals_ESP_Toggles:AddToggle("TableESPToggle",      { Text = "Tables",       Default = false, Tooltip = "Highlights tables and dressers in rooms 0-101." })
 Groupboxes.Visuals_ESP_Toggles:AddDivider()
 Groupboxes.Visuals_ESP_Toggles:AddDropdown("EntityESPOptions",     { 
 	Text = "Entity List",
@@ -3389,7 +3389,7 @@ end)
 Toggles.TableESPToggle:OnChanged(function(Value)
 	for _, Object in Objects.Tables do
 		if Value then
-			Functions.AddESP({ Object = Object, Text = "Table", Color = Options.TableESPColor.Value }, true)
+			Functions.AddESP({ Object = Object, Text = Object.Name, Color = Options.TableESPColor.Value }, true)
 		else
 			Functions.RemoveESP(Object)
 		end
@@ -4828,11 +4828,11 @@ Functions.HandleObject = function(Object)
 	elseif Name == "Ladder" then
 		if Toggles.LadderESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Ladder", Color = Options.LadderESPColor.Value }, true) end
 		table.insert(Objects.Ladders, Object)
-	elseif Name == "Table" then
+	elseif (Name == "Table" or Name == "Dresser") and Object:FindFirstAncestor("Assets") then
 		local RoomNumber = tonumber(Object:GetAttribute("ParentRoom"))
 		if RoomNumber and RoomNumber >= 0 and RoomNumber <= 101 and (Object:IsA("Model") or Object:IsA("BasePart")) then
 			if Toggles.TableESPToggle.Value then
-				Functions.AddESP({ Object = Object, Text = "Table", Color = Options.TableESPColor.Value }, true)
+				Functions.AddESP({ Object = Object, Text = Name, Color = Options.TableESPColor.Value }, true)
 			end
 			table.insert(Objects.Tables, Object)
 		end
@@ -5447,7 +5447,7 @@ local AllowedInstances = {
 	GardenGateButton=true, LotusPetalPickup=true, VineGuillotine=true, LiveEntityBramble=true, ArchivesFihTank=true,
 	RiftSpawn=true, ElevatorBreaker=true, RunnerNodes=true, PathLights=true, DuckBoard=true,
 	Padlock=true, EyestalkEndCutscene=true, MinecartRig=true, SeekMovingNewClone=true, Cellar=true, ArchivesPackageDeposit=true, SalvageChute=true,
-	StairwellFireAlarm=true, ShoppingCart=true, Table=true
+	StairwellFireAlarm=true, ShoppingCart=true, Table=true, Dresser=true
 }
 
 Functions.QueueObject = function(Object)
