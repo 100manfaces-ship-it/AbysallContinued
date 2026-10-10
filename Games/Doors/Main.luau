@@ -1,23 +1,12 @@
-
---	Functions.Notify({Title = "Used For Notifications."})
--- 	Disabled = not Functions.CheckCompatability({"require"}), DisabledTooltip = Globals.IncompatibleMessage
--- 	Risky = Floor ~= "Mines" (Means it only works on mines)
-
-local LoadStart = tick()
-
-if shared.Hastelepasta then
-    return 
-end
+A
 
 shared.Hastelepasta = true
-
 
 getgenv().Abysall = {
     Legit = true
 }
 
-
-local BaseUrl = "https://raw.githubusercontent.com/therealcookiemonsterof1966/AbysallContinued/main/"
+local BaseUrl = "[https://raw.githubusercontent.com/therealcookiemonsterof1966/AbysallContinued/main/](https://raw.githubusercontent.com/therealcookiemonsterof1966/AbysallContinued/main/)"
 
 getgenv().Abysall = {
     Environment = loadstring(game:HttpGet(BaseUrl .. "Components/Environment.luau"))(),
@@ -84,7 +73,6 @@ Abysall.Analytics = loadstring(game:HttpGet(
     BaseUrl .. "Components/Analytics.luau"
 ))()
 
-
 Abysall.SavePath = "Doors/Game"
 
 local Library = Abysall.Interface.Library
@@ -106,7 +94,6 @@ local Services = setmetatable({}, {
 		return CloneReference(game:GetService(Name))
 	end
 })
-
 
 
 -- archives and stairwell locals
@@ -137,7 +124,6 @@ local OrbitDroppedItemsLastTeleport = 0
 local OrbitDroppedItemsPauseUntil = 0
 local droppedItemsIntervalRunning = false
 local Connections = {}
-
 
 
 local Globals = {}
@@ -183,12 +169,9 @@ Functions.CheckCompatability = function(Array)
 end
 
 
-
 local LocalPlayer = Services.Players.LocalPlayer
 
-
 local PortraitName = "MirrorRig_Portrait_" .. LocalPlayer.Name
-
 
 local Entities = {
 	["TV_Stand"] = {
@@ -645,7 +628,7 @@ Globals.DoorsNotify = function(NotifyOptions)
 	end)
 end
 
-Globals.STX = loadstring(game:HttpGet("https://raw.githubusercontent.com/bocaj111004/Abysall/refs/heads/main/Components/STX.luau"))()
+Globals.STX = loadstring(game:HttpGet("[https://raw.githubusercontent.com/bocaj111004/Abysall/refs/heads/main/Components/STX.luau](https://raw.githubusercontent.com/bocaj111004/Abysall/refs/heads/main/Components/STX.luau)"))()
 Functions.Notify = function(Settings)
 	local HiddenContainer = GetHiddenContainer()
 
@@ -1244,7 +1227,6 @@ local Window = Library:CreateWindow({
 
 
 
-
 Abysall.Interface.ApplyInfoTab(Window)
 
 local Tabs = {
@@ -1255,7 +1237,6 @@ local Tabs = {
 	Archives = Window:AddTab("New - Archives", "rbxassetid://104508835882225"),
 	Stairwell = Window:AddTab("New - Stairwell", "rbxassetid://80017304328364"),
 }
-
 
 Groupboxes.General_Character = Tabs.General:AddLeftGroupbox("Character")
 Groupboxes.General_Character:AddSlider("SpeedBoostSlider", {
@@ -1513,13 +1494,11 @@ Groupboxes.Self_Misc:AddButton({
 	end
 })
 
-
 Tabs.General:UpdateWarningBox({
 	Visible = true,
 	Title = "Risk Warning",
 	Text = "Features highlighted in red are risky.",
 })
-
 
 Toggles.SkipSeekHotel:OnChanged(function(Value)
 	if not Value then return end
@@ -2213,7 +2192,6 @@ Toggles.AutoBreakerRoom:OnChanged(function(AutoBreakerRoomEnabled)
 end)
 
 
-
 local AutoHotelConnection
 local AutoHotelLibraryConnection
 local AutoHotelLibraryRoomConnection
@@ -2611,7 +2589,6 @@ Toggles.AutoHotel:OnChanged(function(AutoHotelEnabled)
 	end)
 end)
 
-
 Groupboxes.Debug = Tabs.General:AddRightGroupbox("Debug")
 Groupboxes.Debug:AddButton({
 	Text = "Ladder Softlock Fix",
@@ -2754,7 +2731,6 @@ Toggles.TpNextDoor:OnChanged(function(TpNextDoorEnabled)
 	end)
 end)
 
-
 Groupboxes.Exploits_Bypass = Tabs.Exploits:AddLeftGroupbox("Bypass / Solve")
 
 Groupboxes.Exploits_Bypass:AddToggle("BypassGiggle",         { Text = "Bypass Giggle",           Default = false, Tooltip = "Prevents 'Giggle' from attacking you." })
@@ -2769,7 +2745,6 @@ Groupboxes.Exploits_Bypass:AddToggle("BypassSeekingWall",    { Text = "Bypass Se
 Groupboxes.Exploits_Bypass:AddToggle("BypassSnare",          { Text = "Bypass Snare",            Default = false, Tooltip = "Prevents 'Snare' from trapping you." })
 Groupboxes.Exploits_Bypass:AddToggle("BypassBanana",         { Text = "Bypass Banana",           Default = false, Tooltip = "Prevents 'Banana Peel' from slipping you up (sometimes doesn't work)." })
 Groupboxes.Exploits_Bypass:AddToggle("BypassJeff",           { Text = "Bypass Jeff",             Default = false, Tooltip = "Prevents 'Jeff the Killer' from stabbing you (sometimes doesn't work)." })
-
 
 Toggles.BypassGiggle:OnChanged(function(Value)
 	for _, Object in Objects.Entities do
@@ -2884,8 +2859,6 @@ end)
 
 
 
-
-
 -- Archives
 
 Groupboxes.Archives_Misc = Tabs.Archives:AddRightGroupbox("Exploits / Anti")
@@ -2911,7 +2884,6 @@ TimeShowerLabel.TextXAlignment = Enum.TextXAlignment.Left
 TimeShowerLabel.Text = "Time: --:--"
 TimeShowerLabel.Visible = false
 TimeShowerLabel.Parent = Container
-
 
 
 local function GetArchivesClockLabel(Room)
@@ -3160,7 +3132,6 @@ Toggles.HonchoCorrectBoxESP:OnChanged(function(Value)
 		end
 	end)
 end)
-
 
 Groupboxes.Archives_Bypasses = Tabs.Archives:AddLeftGroupbox("Bypasses")
 Groupboxes.Archives_Bypasses:AddToggle("BypassWater", { Text = "Bypass Electric Water", Default = false, Tooltip = "Prevents electric water from hurting you." })
@@ -3490,10 +3461,8 @@ end)
 Groupboxes.Stairwell_Misc = Tabs.Stairwell:AddLeftGroupbox("Exploits / Anti / Misc")
 
 
-
 Groupboxes.Stairwell_Misc:AddDivider()
 Groupboxes.Stairwell_Misc:AddToggle("BypassNoise", { Text = "Noise Tv Breaker", Default = false, Tooltip = "Breaks the tv of noise while holding it." })
-
 
 Groupboxes.Stairwell_Misc:AddToggle("DroppedItemValue", { Text = "Item Number", Default = false, Tooltip = "Shows the number of dropped items." })
 
@@ -3753,9 +3722,7 @@ end)
 
 
 
-
 Groupboxes.Stairwell_Misc:AddDivider()
-
 
 Groupboxes.Stairwell_Misc:AddToggle("DisableStairwellCrusherCollision", {
 	Text = "Disable Crushers",
@@ -3892,7 +3859,6 @@ end)
 
 
 
-
 local StairwellLandingToken = 0
 
 Toggles.StairwellLandingSpam:OnChanged(function(Value)
@@ -3994,7 +3960,6 @@ Toggles.StairwellLandingSpam:OnChanged(function(Value)
 	end)
 end)
 
-
 Groupboxes.Stairwell_Misc:AddDivider()
 
 Groupboxes.Stairwell_Misc:AddButton("TP Shopping Carts To Player", function()
@@ -4030,7 +3995,6 @@ Groupboxes.Stairwell_Misc:AddButton("Refresh Players", function()
 end)
 
 Groupboxes.Stairwell_Experimental = Tabs.Stairwell:AddRightGroupbox("Experimental")
-
 
 local function TPDropsToNearestGrinder()
     local TPDropsToNearestGrinderDropsFolder =
@@ -4273,7 +4237,6 @@ Toggles.OrbitDroppedItems:OnChanged(function(OrbitDroppedItemsEnabled)
 	end)
 end)
 
-
 Toggles.BypassNoise:OnChanged(function(value)
 	for i = #Connections, 1, -1 do
 		local existingConnection = Connections[i]
@@ -4415,7 +4378,6 @@ Groupboxes.Exploits_BypassRight:AddToggle("InfCrucifix", {
 	Risky = Floor ~= "Ballz",
 })
 
-
 local InfCrucifixDropTable = {
 	RushMoving   = 54,
 	AmbushMoving = 67,
@@ -4425,7 +4387,6 @@ local InfCrucifixDropTable = {
 	A120         = 75,
 
 }
-
 
 
 Toggles.InfCrucifix:OnChanged(function(Value)
@@ -4505,7 +4466,6 @@ Toggles.InfCrucifix:OnChanged(function(Value)
 		end
 	end)
 end)
-
 
 Groupboxes.Exploits_BypassRight:AddDivider()
 Groupboxes.Exploits_BypassRight:AddToggle("PositionSpoof", {
@@ -4814,9 +4774,7 @@ Groupboxes.Visuals_Entities:AddToggle("ShowEntityPath", {
     Tooltip = "Shows the path of entitys."
 })
 
-
 -- i dont wanna hear it okay? i was sick okay let me be okay fuck u okay
-
 
 
 
@@ -5022,7 +4980,6 @@ Options.ShowEntityPathLineThickness:OnChanged(function()
         ShowEntityPathUpdateAll()
     end
 end)
-
 
 Groupboxes.Visuals_Entities:AddDivider()
 
@@ -6012,7 +5969,7 @@ Groupboxes.Floors_Farming:AddButton({
 	DoubleClick = true,
 	Tooltip = "Automatically farms deaths, joining new runs.",
 	Func = function()
-		loadstring(game:HttpGet("https://raw.githubusercontent.com/bocaj111004/Abysall/refs/heads/main/Scripts/DeathFarm.luau"))()
+		loadstring(game:HttpGet("[https://raw.githubusercontent.com/bocaj111004/Abysall/refs/heads/main/Scripts/DeathFarm.luau](https://raw.githubusercontent.com/bocaj111004/Abysall/refs/heads/main/Scripts/DeathFarm.luau)"))()
 	end,
 
 	Disabled = not Functions.CheckCompatability({"fireproximityprompt", "firesignal"}),
@@ -6024,7 +5981,7 @@ Groupboxes.Floors_Farming:AddButton({
 	Tooltip = "Copies the death farm loadstring to your clipboard.",
 	Func = function()
 		toclipboard([==[
-			loadstring(game:HttpGet("https://raw.githubusercontent.com/bocaj111004/Abysall/refs/heads/main/Scripts/DeathFarm.luau"))()
+			loadstring(game:HttpGet("[https://raw.githubusercontent.com/bocaj111004/Abysall/refs/heads/main/Scripts/DeathFarm.luau](https://raw.githubusercontent.com/bocaj111004/Abysall/refs/heads/main/Scripts/DeathFarm.luau)"))()
 		]==])
 		Library:Notify("Loadstring has been copied to your clipboard.")
 	end,
@@ -6564,10 +6521,6 @@ Functions.HandleCharacter = function(NewCharacter)
 
 		if Globals.SelfKilled and Globals.MainUI:FindFirstChild("Statistics") then
 			Globals.MainUI.Statistics.Death.Text = "Died to Abysall Hub"
-		end
-
-		if Globals.Deathing and Globals.MainUI:FindFirstChild("Statistics") then
-			Globals.MainUI.Statistics.Death.Text = "Died to Verity"
 		end
 
 		local MainFrame = Globals.MainUI:FindFirstChild("MainFrame")
@@ -7858,7 +7811,6 @@ Functions.TriggerPrompt = function(Prompt)
 	if Prompt.Name == "VendorPrompt" then return end
     if Prompt.Parent.Name == "SeatPart" or Prompt.Name == "SeatPrompt" then return end
 
-
 	-- Stairwell
 	if Prompt.Parent.Name == "StairwellScrapper" then return end
 	if Prompt.Name == "PortraitDupePrompt" or Prompt.Parent.Name == "MirrorTool" then return end
@@ -8248,9 +8200,6 @@ Library:OnUnload(function()
 	getgenv().Abysall = nil
 	shared.Hastelepasta = false
 end)
-
-
-
 while not Globals.MainUI do task.wait() end
 
 Abysall.Interface.ApplySettingsTab(Window)
