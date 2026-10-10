@@ -1,4 +1,90 @@
+
+--	Functions.Notify({Title = "Used For Notifications."})
+-- 	Disabled = not Functions.CheckCompatability({"require"}), DisabledTooltip = Globals.IncompatibleMessage
+-- 	Risky = Floor ~= "Mines" (Means it only works on mines)
+
 local LoadStart = tick()
+
+if shared.Hastelepasta then
+    return 
+end
+
+shared.Hastelepasta = true
+
+
+getgenv().Abysall = {
+    Legit = true
+}
+
+
+local BaseUrl = "https://raw.githubusercontent.com/therealcookiemonsterof1966/AbysallContinued/main/"
+
+getgenv().Abysall = {
+    Environment = loadstring(game:HttpGet(BaseUrl .. "Components/Environment.luau"))(),
+    ESPLibrary = loadstring(game:HttpGet(BaseUrl .. "Components/ESP.luau"))(),
+    ["16Notice"] = loadstring(game:HttpGet(BaseUrl .. "Components/16Notice.luau"))(),
+    Legit = true
+}
+
+local Abysall = getgenv().Abysall
+
+local function CloneReference(Object)
+    if Abysall and Abysall.Environment.cloneref then
+        return Abysall.Environment.cloneref(Object)
+    end
+    return Object
+end
+
+local Services = setmetatable({}, {
+    __index = function(Self, Name)
+        return CloneReference(game:GetService(Name))
+    end
+})
+
+if Abysall.Environment.writefile and Abysall.Environment.readfile then
+    if not Abysall.Environment.isfile("Abysall/UserData.json") then
+        local Data = {
+            TotalExecutions = 0,
+            UILibrary = "Obsidian"
+        }
+
+        Abysall.Environment.writefile(
+            "Abysall/UserData.json",
+            Services.HttpService:JSONEncode(Data)
+        )
+    end
+
+    local UserData = Abysall.Environment.readfile("Abysall/UserData.json")
+    local Decoded = Services.HttpService:JSONDecode(UserData)
+
+    if not Decoded.TotalExecutions then
+        Decoded.TotalExecutions = 0
+    end
+
+    Decoded.TotalExecutions = Decoded.TotalExecutions + 1
+
+    if not Decoded.UILibrary then
+        Decoded.UILibrary = "Obsidian"
+    end
+
+    Abysall.TotalExecutions = Decoded.TotalExecutions
+    Abysall.UILibrary = Decoded.UILibrary
+
+    Abysall.Environment.writefile(
+        "Abysall/UserData.json",
+        Services.HttpService:JSONEncode(Decoded)
+    )
+end
+
+Abysall.Interface = loadstring(game:HttpGet(
+    BaseUrl .. "Components/Interface.luau"
+))()
+
+Abysall.Analytics = loadstring(game:HttpGet(
+    BaseUrl .. "Components/Analytics.luau"
+))()
+
+
 Abysall.SavePath = "Doors/Game"
 
 local Library = Abysall.Interface.Library
@@ -6,18 +92,6 @@ local SaveManager = Abysall.Interface.SaveManager
 local ThemeManager = Abysall.Interface.ThemeManager
 
 local Toggles = Library.Toggles
-local Toggles = Library.Toggles
--- Toggle okumalarini nil-guvenli yapar; anahtar yoksa false doner (kutuphane sifirlanirsa cokmeyi onler)
-local function ToggleOn(Name)
-	local T = Toggles and Toggles[Name]
-	if T == nil then return false end
-	return T.Value == true
-end
-local function OnChange(Name, Fn)
-	local T = Toggles and Toggles[Name]
-	if T == nil then return end
-	T:OnChanged(Fn)
-end
 local Options = Library.Options
 
 local function CloneReference(Object)
@@ -32,6 +106,39 @@ local Services = setmetatable({}, {
 		return CloneReference(game:GetService(Name))
 	end
 })
+
+
+
+-- archives and stairwell locals
+local TimeShowerSourceLabel
+local TimeShowerToken = 0
+local TimeShowerConnection
+local BypassDronesStampedeConnection
+local HonchoCorrectBoxConnection
+local HonchoAutoDepositConnection
+local HonchoESPObjects = {}
+local HonchoProcessedRooms = {}
+local HonchoDepositCache = {}
+local AntiClosetTrash_Connection
+local AntiRansom_Connection
+local ForgetMeNotConnection
+local ForgetMeNotRunning = false
+local ForgetMeNotProcessing = {}
+local ForgetMeNotNotified = {}
+local WaterBypassConnection
+local WaterParts = {}
+local AlmaConnection
+local AntiScribbles_Connection
+local DroneConnection
+local DroneWalkedIntoParents = {}
+local OrbitDroppedItemsConnection
+local OrbitDroppedItemsAngle = 0
+local OrbitDroppedItemsLastTeleport = 0
+local OrbitDroppedItemsPauseUntil = 0
+local droppedItemsIntervalRunning = false
+local Connections = {}
+
+
 
 local Globals = {}
 local Connections = {}
@@ -52,6 +159,7 @@ local Objects = {
 	Chests = {},
 	Currency = {},
 	Ladders = {},
+	Misc = {},
 	Obstructions = {},
 	EventTriggers = {},
 	JumpscareModules = {},
@@ -60,16 +168,12 @@ local Objects = {
 	SeekNodes = {},
 	SeekDuckBoards = {},
 	SeekBridges = {},
-	PathLights = {},
-	LiveEntities = {},
+	PathLights = {}
 }
 
 Globals.IncompatibleMessage = "Your executor doesn't support this feature."
 
 Functions.CheckCompatability = function(Array)
-	if not Abysall or not Abysall.Environment then
-		return false
-	end
 	for _, Name in Array do
 		if not Abysall.Environment[Name] then
 			return false
@@ -78,7 +182,51 @@ Functions.CheckCompatability = function(Array)
 	return true
 end
 
+
+
+local LocalPlayer = Services.Players.LocalPlayer
+
+
+local PortraitName = "MirrorRig_Portrait_" .. LocalPlayer.Name
+
+
 local Entities = {
+	["TV_Stand"] = {
+		Alias = "Noise_TV",
+		NotifyMessage = { Title = "Noise tv spawned.", Body = "Dont get near it" }
+	},
+	[PortraitName] = {
+		Alias = "Portrait",
+		NotifyMessage = { Title = "Portrait' has spawned.", Body = "Use him to duplicate items." }
+	},
+	["StemsEntity"] = {
+	    Alias = 'Balls',
+		NotifyMessage = { Title = "Balls", Body = "Balls."}
+	},
+	["NoiseModel"] = {
+		Alias = 'Noise',
+		NotifyMessage = { Title = "Entity 'Noise' has spawned.", Body = "Dont let it touch you." }
+	},
+	["Creak"] = {
+		Alias = "Creak",
+		NotifyMessage = { Title = "Entity 'Creak' has spawned.", Body = "Dont touch him." }
+	},
+	["DronesStampede"] = {
+		Alias = "DronesStampede",
+		NotifyMessage = { Title = "Entity 'Drones Stampede' has spawned.", Body = "Find a hiding spot." }
+	},
+	["TellerRig"] = {
+		Alias = "Teller",
+		NotifyMessage = { Title = "Entity 'Teller' has spawned.", Body = "Dont worry, hes only annoying." }
+	},
+	["Scribbles"] = {
+		Alias = "Scribbles",
+		NotifyMessage = { Title = "Entity 'Scribbles' has spawned.", Body = "Find a hiding spot." }
+	},
+	["BashMoving"] = {
+		Alias = "Bash",
+		NotifyMessage = { Title = "Entity 'Bash' has spawned.", Body = "Find a hiding spot."}
+	},
 	["RushMoving"] = {
 		Alias = "Rush",
 		NotifyMessage = { Title = "Entity 'Rush' has spawned.", Body = "Find a hiding spot." }
@@ -145,155 +293,7 @@ local Entities = {
 	},
 	["SallyMoving"] = {
 		Alias = "Sally",
-		NotifyMessage = { Title = "Entity 'Sally' has spawned.", Body = "Drop an item for her." }
-	},
-	["Caws"] = {
-		Alias = "Caws",
-		NotifyMessage = { Title = "Entity 'Caws' has spawned.", Body = "It marks Iron Keys and Lotus Petals." }
-	},
-	["Caw"] = {
-		Alias = "Caws",
-		NotifyMessage = { Title = "Entity 'Caws' has spawned.", Body = "It marks Iron Keys and Lotus Petals." }
-	},
-	["Grampy"] = {
-		Alias = "Grampy",
-		NotifyMessage = { Title = "Entity 'Grampy' has spawned.", Body = "Give him 8 Lotus Petals for a Lotus." }
-	},
-	-- The Archives (28.08.2026) entities
-	["Honcho"] = {
-		Alias = "Honcho",
-		NotifyMessage = { Title = "Entity 'Honcho' has spawned.", Body = "Run! Match the packages on the doors." }
-	},
-	["Bash"] = {
-		Alias = "Bash",
-		NotifyMessage = { Title = "Entity 'Bash' has spawned.", Body = "Find a hiding spot." }
-	},
-	["BashMoving"] = {
-		Alias = "Bash",
-		NotifyMessage = { Title = "Entity 'Bash' has spawned.", Body = "Find a hiding spot." }
-	},
-	["Ransom"] = {
-		Alias = "Ransom",
-		NotifyMessage = { Title = "Entity 'Ransom' has spawned.", Body = "Stop moving completely." }
-	},
-	["Scribbles"] = {
-		Alias = "Scribbles",
-		NotifyMessage = { Title = "Entity 'Scribbles' has spawned.", Body = "Watch the doors ahead." }
-	},
-	["ScribblesMoving"] = {
-		Alias = "Scribbles",
-		NotifyMessage = { Title = "Entity 'Scribbles' has spawned.", Body = "Watch the doors ahead." }
-	},
-	["Drone"] = {
-		Alias = "Drone",
-		NotifyMessage = { Title = "Entity 'Drone' has spawned.", Body = "Avoid its line of sight." }
-	},
-	["DroneMoving"] = {
-		Alias = "Drone",
-		NotifyMessage = { Title = "Entity 'Drone' has spawned.", Body = "Avoid its line of sight." }
-	},
-	["Alma"] = {
-		Alias = "Alma",
-		NotifyMessage = { Title = "Entity 'Alma' has spawned.", Body = "Keep your distance." }
-	},
-	["Fih"] = {
-		Alias = "Fih",
-		NotifyMessage = { Title = "Entity 'Fih' has spawned.", Body = "Find a hiding spot." }
-	},
-	["Teller"] = {
-		Alias = "Teller",
-		NotifyMessage = { Title = "Entity 'Teller' has spawned.", Body = "Find a hiding spot." }
-	},
-	["Portrait"] = {
-		Alias = "Portrait",
-		NotifyMessage = { Title = "Entity 'Portrait' has spawned.", Body = "Do not look at it." }
-	},
-	["Forget-Me-Not"] = {
-		Alias = "Forget-Me-Not",
-		NotifyMessage = { Title = "Entity 'Forget-Me-Not' has spawned.", Body = "Take notes." }
-	},
-	["ForgetMeNot"] = {
-		Alias = "Forget-Me-Not",
-		NotifyMessage = { Title = "Entity 'Forget-Me-Not' has spawned.", Body = "Take notes." }
-	},
-	-- HandleObject'ta islenip bu tabloda olmayan entity'ler.
-	-- Eksik olunca EntityHandler ve dropdown'lar nil donup ESP'yi kapatiyordu.
-	["Snare"] = {
-		Alias = "Snare",
-		NotifyMessage = { Title = "Entity 'Snare' has spawned.", Body = "Don't get caught." }
-	},
-	["GiggleCeiling"] = {
-		Alias = "Giggle",
-		NotifyMessage = { Title = "Entity 'Giggle' has spawned.", Body = "Don't look up." }
-	},
-	["GloomPile"] = {
-		Alias = "Gloombat Eggs",
-		NotifyMessage = { Title = "Entity 'Gloombat Eggs' has spawned.", Body = "Walk around the eggs." }
-	},
-	["DoorFake"] = {
-		Alias = "Dupe",
-		NotifyMessage = { Title = "Entity 'Dupe' has spawned.", Body = "Don't open the fake door." }
-	},
-	["FakeDoor"] = {
-		Alias = "Dupe",
-		NotifyMessage = { Title = "Entity 'Dupe' has spawned.", Body = "Don't open the fake door." }
-	},
-	["SideroomSpace"] = {
-		Alias = "Sideroom",
-		NotifyMessage = { Title = "Entity 'Sideroom' has spawned.", Body = "The floor is not solid." }
-	},
-	["BananaPeel"] = {
-		Alias = "Banana Peel",
-		NotifyMessage = { Title = "Entity 'Banana Peel' has spawned.", Body = "Watch your step." }
-	},
-	["LiveEntityBramble"] = {
-		Alias = "Bramble",
-		NotifyMessage = { Title = "Entity 'Bramble' has spawned.", Body = "Run." }
-	},
-	["GrumbleRig"] = {
-		Alias = "Grumble",
-		NotifyMessage = { Title = "Entity 'Grumble' has spawned.", Body = "Hide." }
-	},
-	["Figure"] = {
-		Alias = "Figure",
-		NotifyMessage = { Title = "Entity 'Figure' has spawned.", Body = "Survive the minigame." }
-	},
-	["FigureRagdoll"] = {
-		Alias = "Figure",
-		NotifyMessage = { Title = "Entity 'Figure' has spawned.", Body = "Survive the minigame." }
-	},
-	-- The Stairwell (secret Mines subfloor) entities
-	["Creak"] = {
-		Alias = "Creak",
-		NotifyMessage = { Title = "Entity 'Creak' has spawned.", Body = "Find a hiding spot." }
-	},
-	["Creek"] = {
-		Alias = "Creak",
-		NotifyMessage = { Title = "Entity 'Creak' has spawned.", Body = "Find a hiding spot." }
-	},
-	["Noise"] = {
-		Alias = "Noise",
-		NotifyMessage = { Title = "Entity 'Noise' has spawned.", Body = "Stay quiet." }
-	},
-	["NoiseModel"] = {
-		Alias = "Noise",
-		NotifyMessage = { Title = "Entity 'Noise' has spawned.", Body = "Stay quiet." }
-	},
-	["TV_Stand"] = {
-		Alias = "TV Stand",
-		NotifyMessage = { Title = "Entity 'TV Stand' has spawned.", Body = "Hide from it." }
-	},
-	["Stem"] = {
-		Alias = "Stem",
-		NotifyMessage = { Title = "Entity 'Stem' has spawned.", Body = "Find a hiding spot." }
-	},
-	["Meld"] = {
-		Alias = "Meld",
-		NotifyMessage = { Title = "Entity 'Meld' has spawned.", Body = "Find a hiding spot." }
-	},
-	["Cobbler"] = {
-		Alias = "Cobbler",
-		NotifyMessage = { Title = "Entity 'Cobbler' has spawned.", Body = "Find a hiding spot." }
+		NotifyMessage = { Title = "Entity 'Sally' has spawned.", Body = "Find her horse and rop it." }
 	}
 }
 
@@ -317,6 +317,20 @@ local EntityIcons = {
 }
 
 local ItemNames = {
+	["AbrahamHat"]        = "Hat",
+	["LargeScrew"]        = "Screw",
+	["DinkyLamp"]         = "Lamp",
+	["BottleCrate"]       = "18+ Bottles",
+	["GweenSodaPack"]     = "Gween Soda Pack",
+	["BrokenMonitor"]     = "Broken Monitor",
+	["JerryCan"]          = "Jerry Can",
+ 	["SallyToyObtain"]    = "Sally Toy",
+	["Leftovers"]         = "Lunch Box",
+	["HoneyPot"]          = "Honey Pot",
+	["FihFlakes"]         = "Fih Food",
+	["SecretCD"]          = "CD Disc",
+	["Pizza"]             = "Pizza",
+	["PaperPlanePickup"]  = "Paper Plane",
 	["Lighter"]           = "Lighter",
 	["Flashlight"]        = "Flashlight",
 	["Lockpick"]          = "Lockpicks",
@@ -359,7 +373,6 @@ local ItemNames = {
 	["GoldGun"]           = "Golden Gun",
 	["StopSign"]          = "Stop Sign",
 	["TipJar"]            = "Tip Jar",
-	["HoneyPot"]          = "Honey Pot",
 	["Lantern"]           = "Lantern",
 	["IronKey"]           = "Iron Key",
 	["LotusPetal"]        = "Lotus Petal",
@@ -374,32 +387,7 @@ local ItemNames = {
 	["AloeVera"]          = "Aloe Vera",
 	["Donut"]             = "Donut",
 	["Lotus"]             = "Lotus",
-	["BoxingGloves"]      = "Boxing Gloves",
-	["FihFlakes"]         = "FihFlakes",
-	["Fihflakes"]         = "FihFlakes",
-	["Leftovers"]         = "Leftovers",
-	["Pizza"]             = "Pizza",
-	-- The Archives items
-	["Briefcase"]         = "Briefcase",
-	["PaperPlane"]        = "Paper Plane",
-	["LunchBox"]          = "Lunch Box",
-	["Lunch Box"]         = "Lunch Box",
-	["PaperCup"]          = "Paper Cup",
-	["Paper Cup"]         = "Paper Cup",
-	["WaitingTicket"]     = "Waiting Ticket",
-	["Waiting Ticket"]    = "Waiting Ticket",
-	-- Stairwell / Gween items
-	["StairwellScrapper"]  = "Stairwell Scrapper",
-	["StairwellBlastDoor"] = "Stairwell Blast Door",
-	["GweenSodaPack"]      = "Gween Soda Pack",
-	["BottleCrate"]        = "Bottle Crate",
-	["BrokenMonitor"]      = "Broken Monitor",
-	["JerryCan"]           = "Jerry Can",
-	["ObjectScanner"]      = "Object Scanner",
-	["PeachCobbler"]       = "Peach Cobbler",
-	["DinkyLamp"]          = "Dinky Lamp",
-	["SalvageScrap"]       = "Salvage Scrap",
-	["CoinRoll"]           = "Coin Roll",
+	["BoxingGloves"]      = "Boxing Gloves"
 }
 
 local CutsceneNames = {
@@ -427,7 +415,6 @@ local CollisionPart
 local CollisionPartClone
 
 local Camera
-local LocalPlayer = Services.Players.LocalPlayer
 
 local RemotesFolder   = Services.ReplicatedStorage:FindFirstChild("RemotesFolder")
 local LiveModifiers   = Services.ReplicatedStorage:FindFirstChild("LiveModifiers")
@@ -438,14 +425,15 @@ local GameData        = Services.ReplicatedStorage:WaitForChild("GameData")
 local Floor           = GameData:WaitForChild("Floor").Value
 local LatestRoom      = GameData:WaitForChild("LatestRoom")
 local FinishedLoadingRoom = GameData:FindFirstChild("FinishedLoadingRoom")
+local RunService = game:GetService("RunService")
+
 if FinishedLoadingRoom then
 	FinishedLoadingRoom:Destroy()
 end
 
 local function GetHiddenContainer()
-	if Abysall and Abysall.Environment and Functions.CheckCompatability({"gethui"}) then
-		local Ok, Hui = pcall(function() return Abysall.Environment.gethui() end)
-		if Ok and Hui then return Hui end
+	if Functions.CheckCompatability({"gethui"}) then
+		return Abysall.Environment.gethui()
 	end
 	return Services.CoreGui
 end
@@ -657,13 +645,7 @@ Globals.DoorsNotify = function(NotifyOptions)
 	end)
 end
 
--- STX'i arkaplanda indir, yuklemeyi bloklamasin (inen kadar Abysall stili kullanilir)
-task.spawn(function()
-	local Ok, Mod = pcall(function()
-		return loadstring(game:HttpGet("https://raw.githubusercontent.com/arda201415/Abysall/refs/heads/main/Components/STX.luau"))()
-	end)
-	if Ok and Mod then Globals.STX = Mod end
-end)
+Globals.STX = loadstring(game:HttpGet("https://raw.githubusercontent.com/bocaj111004/Abysall/refs/heads/main/Components/STX.luau"))()
 Functions.Notify = function(Settings)
 	local HiddenContainer = GetHiddenContainer()
 
@@ -674,7 +656,7 @@ Functions.Notify = function(Settings)
 	if not Options.NotifyStyle or Options.NotifyStyle.Value == "Abysall" then
 		local Sound = Instance.new("Sound", HiddenContainer)
 		Sound.SoundId = "rbxassetid://8784885431"
-		Sound.Volume = (Toggles.NotifyPlaySound and ToggleOn("NotifyPlaySound") and Options.NotifySoundVolume.Value) or (Toggles.NotifyPlaySound and 0 or 3)
+		Sound.Volume = (Toggles.NotifyPlaySound and Toggles.NotifyPlaySound.Value and Options.NotifySoundVolume.Value) or (Toggles.NotifyPlaySound and 0 or 3)
 		Sound.PlayOnRemove = true
 		Sound:Destroy()
 		NotificationLibrary:Notify(Settings.Title, Settings.Body, Settings.Time or 5)
@@ -696,10 +678,10 @@ Functions.Notify = function(Settings)
 			Image = Settings.Image,
 			Time = Settings.Time
 		})
-	elseif Options.NotifyStyle.Value == "STX" and Globals.STX then
+	elseif Options.NotifyStyle.Value == "STX" then
 		local Sound = Instance.new("Sound", HiddenContainer)
 		Sound.SoundId = "rbxassetid://4590657391"
-		Sound.Volume = (Toggles.NotifyPlaySound and ToggleOn("NotifyPlaySound") and Options.NotifySoundVolume.Value) or (Toggles.NotifyPlaySound and 0 or 3)
+		Sound.Volume = (Toggles.NotifyPlaySound and Toggles.NotifyPlaySound.Value and Options.NotifySoundVolume.Value) or (Toggles.NotifyPlaySound and 0 or 3)
 		Sound.PlayOnRemove = true
 		Sound:Destroy()
 
@@ -718,7 +700,7 @@ Functions.Notify = function(Settings)
 	else
 		local Sound = Instance.new("Sound", HiddenContainer)
 		Sound.SoundId = "rbxassetid://4590662766"
-		Sound.Volume = (Toggles.NotifyPlaySound and ToggleOn("NotifyPlaySound") and Options.NotifySoundVolume.Value) or (Toggles.NotifyPlaySound and 0 or 3)
+		Sound.Volume = (Toggles.NotifyPlaySound and Toggles.NotifyPlaySound.Value and Options.NotifySoundVolume.Value) or (Toggles.NotifyPlaySound and 0 or 3)
 		Sound.PlayOnRemove = true
 		Sound:Destroy()
 		Library:OldNotify({ Title = Settings.Title, Description = Settings.Body, Time = Settings.Time })
@@ -775,372 +757,6 @@ Functions.GetHasteTime = function()
 	return MinutesText .. ":" .. SecondsText
 end
 
--- Drone Stampede (The Archives): clocks strike 5:00 / 9:00, 1 real second = 1 game minute
-Globals.DroneStampedeState = {
-	LastWarnTick = 0,
-	WarnedFor = nil,
-	LastStampedeTick = 0,
-	RunStartTick = tick(),
-	RecentDroneSpawns = {},
-	CachedClockLabels = {},
-	CachedTimeValues = {},
-	CachedArchivesClocks = {},
-	ClockDebugNotified = false,
-	LastScan = 0,
-	LastLightingCheck = 0,
-	LastLightingTime = nil,
-	LastLightingTick = 0,
-	LightingTrusted = false,
-	LastCaptionSecond = -1,
-}
-
-Functions.ParseArchivesClockText = function(Text)
-	if typeof(Text) ~= "string" then return nil end
-	local H, M = Text:match("(%d+)%s*:%s*(%d+)")
-	if not H then return nil end
-	H = tonumber(H)
-	M = tonumber(M)
-	if not H or not M then return nil end
-	if M < 0 or M > 59 then return nil end
-	if H < 0 or H > 23 then return nil end
-	return H, M
-end
-
-Functions.GetStampedeRemainingFromHM = function(H, M)
-	-- 12h normalize: 9:00 -> 540, 5:00 -> 300. 1 game minute = 1 real second.
-	local Total12 = (H % 12) * 60 + M
-	local TargetA = 5 * 60 -- 5:00
-	local TargetB = 9 * 60 -- 9:00
-	local NextTarget, TargetHour
-	if Total12 < TargetA then
-		NextTarget = TargetA
-		TargetHour = 5
-	elseif Total12 < TargetB then
-		NextTarget = TargetB
-		TargetHour = 9
-	else
-		NextTarget = TargetA + 720
-		TargetHour = 5
-	end
-	local Remaining = NextTarget - Total12 -- game minutes = real seconds
-	return Remaining, TargetHour
-end
-
-Functions.FormatStampedeTime = function(SecondsLeft)
-	SecondsLeft = math.max(0, math.floor(SecondsLeft + 0.5))
-	local Minutes = math.floor(SecondsLeft / 60)
-	local Seconds = SecondsLeft - (Minutes * 60)
-	local MinutesText = Minutes < 10 and ("0" .. tostring(Minutes)) or tostring(Minutes)
-	local SecondsText = Seconds < 10 and ("0" .. tostring(Seconds)) or tostring(Seconds)
-	return MinutesText .. ":" .. SecondsText
-end
-
-Functions.ReadArchivesClockInstance = function(ClockObj)
-	-- Workspace.CurrentRooms.<room>.Assets.ArchivesClock
-	-- Deneme sirasi: attribute -> cocuk Value -> icindeki yazi (TextLabel)
-	if not ClockObj then return nil end
-	local H, M
-	-- 1) Attribute'lar
-	pcall(function()
-		local function AttrNum(...)
-			for _, N in {...} do
-				local V = ClockObj:GetAttribute(N)
-				if typeof(V) == "number" then return V end
-			end
-			return nil
-		end
-		local function AttrStr(...)
-			for _, N in {...} do
-				local V = ClockObj:GetAttribute(N)
-				if typeof(V) == "string" then return V end
-			end
-			return nil
-		end
-		local AH = AttrNum("Hour", "Hours", "H", "hour", "hours")
-		local AM = AttrNum("Minute", "Minutes", "M", "minute", "minutes")
-		if AH and AM and AH >= 0 and AH <= 23 and AM >= 0 and AM <= 59 then
-			H, M = math.floor(AH), math.floor(AM)
-			return
-		end
-		local AT = AttrStr("Time", "ClockTime", "TimeString", "HM", "time", "clockTime")
-		if AT then
-			local PH, PM = Functions.ParseArchivesClockText(AT)
-			if PH then H, M = PH, PM return end
-		end
-		local AN = AttrNum("Time", "ClockTime", "Minutes", "TotalMinutes", "time")
-		if AN then
-			if AN > 24 and AN <= 1440 then
-				H, M = math.floor(AN / 60) % 24, math.floor(AN % 60)
-				return
-			elseif AN >= 0 and AN <= 24 and AN % 1 ~= 0 then
-				H, M = math.floor(AN), math.floor((AN - math.floor(AN)) * 60)
-				return
-			end
-		end
-	end)
-	if H then return H, M end
-	-- 2) Dogrudan cocuk Value'lar
-	pcall(function()
-		for _, N in {"Hour", "Hours", "H", "Minute", "Minutes", "M", "Time", "ClockTime"} do
-			local Child = ClockObj:FindFirstChild(N)
-			if Child then
-				if Child:IsA("StringValue") then
-					local PH, PM = Functions.ParseArchivesClockText(Child.Value)
-					if PH then H, M = PH, PM return end
-				elseif Child:IsA("IntValue") or Child:IsA("NumberValue") then
-					local V = Child.Value
-					if N == "Hour" or N == "Hours" or N == "H" then
-						if V >= 0 and V <= 23 then H = math.floor(V) end
-					elseif N == "Minute" or N == "Minutes" or N == "M" then
-						if V >= 0 and V <= 59 then M = math.floor(V) end
-					elseif V > 24 and V <= 1440 then
-						H, M = math.floor(V / 60) % 24, math.floor(V % 60)
-						return
-					else
-						local PH, PM = Functions.ParseArchivesClockText(tostring(V))
-						if PH then H, M = PH, PM return end
-					end
-					if H and M then return end
-				end
-			end
-		end
-	end)
-	if H and M then return H, M end
-	-- 3) Altindaki yazi gostergeleri (dijital saat ekrani)
-	pcall(function()
-		for _, Desc in ClockObj:GetDescendants() do
-			if Desc:IsA("TextLabel") or Desc:IsA("TextButton") then
-				local Ok, Txt = pcall(function() return Desc.Text end)
-				if Ok and typeof(Txt) == "string" and Txt:find("%d+%s*:%s*%d+") then
-					local PH, PM = Functions.ParseArchivesClockText(Txt)
-					if PH then H, M = PH, PM return end
-				end
-			end
-		end
-	end)
-	if H and M then return H, M end
-	return nil
-end
-
-Functions.ScanStampedeClockSources = function()
-	local State = Globals.DroneStampedeState
-	if tick() - State.LastScan < 5 then return end
-	State.LastScan = tick()
-	table.clear(State.CachedClockLabels)
-	table.clear(State.CachedTimeValues)
-	table.clear(State.CachedArchivesClocks)
-	-- 0) Dogrudan kaynak: CurrentRooms.<oda>.Assets.ArchivesClock (oda basina tek kontrol, ucuz)
-	pcall(function()
-		if CurrentRooms then
-			for _, Room in CurrentRooms:GetChildren() do
-				local Assets = Room:FindFirstChild("Assets")
-				local Clock = Assets and Assets:FindFirstChild("ArchivesClock")
-				if Clock then table.insert(State.CachedArchivesClocks, Clock) end
-			end
-		end
-	end)
-	-- birincil kaynak bulunuyorsa agir genel taramayi atla (60sn'de bir tazele, kasmayi onler)
-	if #State.CachedArchivesClocks > 0 then
-		State._GenericScanAt = State._GenericScanAt or 0
-		if tick() - State._GenericScanAt < 60 then return end
-		State._GenericScanAt = tick()
-	end
-
-	-- 1) Time-like values in ReplicatedStorage / GameData / FloorReplicated
-	local function ConsiderValue(Obj)
-		if not (Obj:IsA("IntValue") or Obj:IsA("NumberValue") or Obj:IsA("StringValue")) then return end
-		local N = Obj.Name:lower()
-		if N == "digitaltimer" then return end
-		if N:find("clock") or N:find("time") or N:find("hour") or N:find("minute") or N:find("shift") or N:find("stampede") or N:find("drone") or N == "day" then
-			table.insert(State.CachedTimeValues, Obj)
-		end
-	end
-	pcall(function()
-		for _, Obj in Services.ReplicatedStorage:GetDescendants() do
-			ConsiderValue(Obj)
-		end
-	end)
-
-	-- 2) Wall clock / speaker TextLabels showing HH:MM in rooms + PlayerGui
-	local function ConsiderLabel(Obj)
-		if not (Obj:IsA("TextLabel") or Obj:IsA("TextButton")) then return end
-		local Ok, Txt = pcall(function() return Obj.Text end)
-		if not Ok or typeof(Txt) ~= "string" then return end
-		if Txt:match("%d+%s*:%s*%d+") then
-			local H, M = Functions.ParseArchivesClockText(Txt)
-			if H then
-				table.insert(State.CachedClockLabels, Obj)
-			end
-		end
-	end
-	pcall(function()
-		if CurrentRooms then
-			for _, Obj in CurrentRooms:GetDescendants() do
-				ConsiderLabel(Obj)
-			end
-		end
-	end)
-	pcall(function()
-		for _, Obj in LocalPlayer.PlayerGui:GetDescendants() do
-			ConsiderLabel(Obj)
-		end
-	end)
-end
-
-Functions.GetArchivesClockHM = function()
-	local State = Globals.DroneStampedeState
-
-	-- A) Lighting.ClockTime (only if it moves ~1 game minute per real second)
-	pcall(function()
-		local CT = Services.Lighting.ClockTime
-		local Now = tick()
-		if typeof(CT) == "number" then
-			if State.LastLightingTime ~= nil then
-				local Dt = Now - State.LastLightingTick
-				if Dt > 0.5 and Dt < 10 then
-					local Dh = (CT - State.LastLightingTime) % 24
-					if Dh > 12 then Dh = Dh - 24 end
-					local Rate = math.abs(Dh) / Dt -- hour per real second, expect ~1/60 = 0.0167
-					if Rate > 0.005 and Rate < 0.05 then
-						State.LightingTrusted = true
-					elseif Rate > 0.0001 then
-						-- moving at wrong rate (e.g. day/night visuals), do not trust
-						if Dt > 5 then State.LightingTrusted = false end
-					end
-				end
-			end
-			State.LastLightingTime = CT
-			State.LastLightingTick = Now
-			if State.LightingTrusted then
-				local H = math.floor(CT)
-				local M = math.floor((CT - H) * 60)
-				if H >= 0 and H <= 23 and M >= 0 and M <= 59 then
-					State._LightingHM_H = H
-					State._LightingHM_M = M
-				end
-			end
-		end
-	end)
-	if State.LightingTrusted and State._LightingHM_H ~= nil then
-		return State._LightingHM_H, State._LightingHM_M, "Lighting"
-	end
-
-	-- A2) ArchivesClock (birincil kaynak): tum saatleri oku, stampede'e en yakin olani kullan
-	local BestH, BestM, BestRem
-	for _, Clock in State.CachedArchivesClocks do
-		local Ok, CH, CM = pcall(Functions.ReadArchivesClockInstance, Clock)
-		if Ok and CH and CM then
-			local Rem = Functions.GetStampedeRemainingFromHM(CH, CM)
-			if not BestRem or Rem < BestRem then
-				BestH, BestM, BestRem = CH, CM, Rem
-			end
-		end
-	end
-	if BestH then
-		return BestH, BestM, "ArchivesClock"
-	end
-
-	-- B) Cached time values
-	for _, Obj in State.CachedTimeValues do
-		local Ok, Result = pcall(function()
-			if Obj:IsA("StringValue") then
-				return Functions.ParseArchivesClockText(Obj.Value)
-			elseif Obj:IsA("IntValue") or Obj:IsA("NumberValue") then
-				local V = Obj.Value
-				if typeof(V) ~= "number" then return nil end
-				if V >= 0 and V <= 24 and V % 1 ~= 0 then
-					-- float hours, e.g. 9.5 = 09:30
-					local H = math.floor(V)
-					local M = math.floor((V - H) * 60)
-					return H, M
-				elseif V >= 0 and V <= 24 then
-					-- ambiguous 0-24 int, likely hour only; skip (no minutes)
-					return nil
-				elseif V > 24 and V <= 1440 then
-					local H = math.floor(V / 60) % 24
-					local M = math.floor(V % 60)
-					return H, M
-				end
-				return nil
-			end
-			return nil
-		end)
-		if Ok and Result then
-			local H, M = Result, nil
-			-- pcall returns first return only; re-parse for M
-			if typeof(H) == "number" then
-				local H2, M2
-				if Obj:IsA("StringValue") then
-					H2, M2 = Functions.ParseArchivesClockText(Obj.Value)
-				elseif Obj:IsA("NumberValue") or Obj:IsA("IntValue") then
-					local V = Obj.Value
-					if V > 24 and V <= 1440 then
-						H2 = math.floor(V / 60) % 24
-						M2 = math.floor(V % 60)
-					elseif V >= 0 and V <= 24 and V % 1 ~= 0 then
-						H2 = math.floor(V)
-						M2 = math.floor((V - H2) * 60)
-					end
-				end
-				if H2 then return H2, M2, "Value:" .. Obj:GetFullName() end
-			end
-		end
-	end
-
-	-- C) Cached clock labels (wall clocks / UI)
-	for _, Label in State.CachedClockLabels do
-		local Ok, Txt = pcall(function() return Label.Text end)
-		if Ok and typeof(Txt) == "string" then
-			local H, M = Functions.ParseArchivesClockText(Txt)
-			if H then return H, M, "Label:" .. Label:GetFullName() end
-		end
-	end
-
-	return nil
-end
-
-Functions.GetDroneStampedeCountdown = function()
-	Functions.ScanStampedeClockSources()
-	local H, M, Source = Functions.GetArchivesClockHM()
-	if H then
-		local Remaining, TargetHour = Functions.GetStampedeRemainingFromHM(H, M)
-		return Remaining, TargetHour, string.format("%02d:%02d", H, M), Source
-	end
-	-- Teshis: ArchivesClock var ama okunamadiysa yapisini F9 konsola dok (bir kez)
-	local St = Globals.DroneStampedeState
-	if not St.ClockDebugNotified and St.CachedArchivesClocks and #St.CachedArchivesClocks > 0 then
-		St.ClockDebugNotified = true
-		pcall(function()
-			local Clock = St.CachedArchivesClocks[1]
-			local Attrs = {}
-				pcall(function()
-					for K, V in Clock:GetAttributes() do
-						if #Attrs < 15 then table.insert(Attrs, K .. "=" .. tostring(V)) end
-					end
-				end)
-			local Kids = {}
-				pcall(function()
-					for _, C in Clock:GetChildren() do
-						if #Kids < 20 then table.insert(Kids, C.ClassName .. ":" .. C.Name) end
-					end
-				end)
-			warn("[Abysall] ArchivesClock okunamadi, fallback sayaç kullaniliyor. Attrs: " .. table.concat(Attrs, ", ") .. " | Children: " .. table.concat(Kids, ", "))
-		end)
-	end
-	-- Fallback: assume run started at 9:00, 12h cycle (720 min), targets at +480 (5:00) and +720 (9:00)
-	local Elapsed = tick() - Globals.DroneStampedeState.RunStartTick -- 1 sec = 1 game min
-	local CyclePos = Elapsed % 720
-	local Remaining, TargetHour
-	if CyclePos < 480 then
-		Remaining = 480 - CyclePos
-		TargetHour = 5
-	else
-		Remaining = 720 - CyclePos
-		TargetHour = 9
-	end
-	return Remaining, TargetHour, nil, "FallbackTimer"
-end
-
 Library.OldNotify = Library.Notify
 Library.Notify = function(Data, Body, Time)
 	Functions.Notify({ Title = Body, Time = Time or 5 })
@@ -1151,11 +767,7 @@ if not LocalPlayer.Character or not CurrentRooms:FindFirstChildOfClass("Model") 
 	while not LocalPlayer.Character or not CurrentRooms:FindFirstChildOfClass("Model") do
 		task.wait()
 	end
-	-- sabit 4sn yerine MainUI gelene kadar bekle (gelince aninda devam, en fazla 4sn)
-	local UIWaitStart = tick()
-	while not LocalPlayer.PlayerGui:FindFirstChild("MainUI") and tick() - UIWaitStart < 4 do
-		task.wait()
-	end
+	task.wait(4)
 end
 
 if not RemotesFolder then
@@ -1214,7 +826,7 @@ for _, Object in Services.Lighting:GetChildren() do
 			if Object.Density ~= 0 then
 				Object:SetAttribute("Density_Old", Object.Density)
 			end
-			if ToggleOn("RemoveCameraFog") then
+			if Toggles.RemoveCameraFog.Value then
 				Object.Density = 0
 			end
 		end)
@@ -1276,28 +888,6 @@ Functions.GetCurrentSpeed = function()
 	return Speed
 end
 
--- Server'in dogruladigi Collision parcalarini hedefe snap'lemek yerine
--- hiz limitli yumuşak takip: CFrame teleportlarinda tek karede imkansiz
--- delta gorunmez, "client teleporting" tetiklenmesi zorlasir.
-Functions.SmoothMove = function(Part, TargetPos, Delta)
-	if not Part or not TargetPos then return end
-	if not (Toggles.AntiTeleport and ToggleOn("AntiTeleport")) then
-		Part.Position = TargetPos
-		return
-	end
-	local MaxStep = (Options.AntiTeleportSpeed and Options.AntiTeleportSpeed.Value or 40) * math.clamp(Delta or 0.016, 0, 0.1)
-	local Offset = TargetPos - Part.Position
-	local Dist = Offset.Magnitude
-	if Dist <= MaxStep or Dist == 0 then
-		Part.Position = TargetPos
-	elseif Dist > MaxStep * 15 then
-		-- Cok buyuk fark gizlenemez, geride kalip rubber-band yememek icin snap'le
-		Part.Position = TargetPos
-	else
-		Part.Position = Part.Position + (Offset / Dist) * MaxStep
-	end
-end
-
 Functions.GetMousePosition = function()
 	if Library.IsMobile then
 		return Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
@@ -1341,6 +931,9 @@ end
 
 local EntityDistances = {
 	["RushMoving"]    = 85,
+	["Scribbles"]	  = 100,
+	["BashMoving"]    = 150,
+	["DronesStampede"] = 100,
 	["AmbushMoving"]  = 150,
 	["A60"]           = 125,
 	["A120"]          = 85,
@@ -1353,17 +946,19 @@ local EntityDistances = {
 Functions.GetNearestEntity = function(CheckDisabled, List, UseRaycasting)
 	local Nearest = { Distance = math.huge, Object = nil }
 
-	for _, Entity in Services.Workspace:GetChildren() do
-		if Entity and EntityDistances[Entity.Name] and Entity.PrimaryPart then
-			local EntityData = Entities[Entity.Name]
-			if not (List and List[EntityData.Alias]) then
-				local Distance = LocalPlayer:DistanceFromCharacter(Entity.PrimaryPart.Position)
-				if Distance < EntityDistances[Entity.Name] and Distance < Nearest.Distance then
-					if not CheckDisabled or Entity:GetAttribute("Inactive") ~= true then
-						Nearest.Distance = Distance
-						Nearest.Object = Entity
-					end
-				end
+	for _, Entity in Objects.Entities do
+		if not Entity or not Entity:IsA("Model") or not Entity:IsDescendantOf(Services.Workspace) then continue end
+		if not EntityDistances[Entity.Name] or not Entity.PrimaryPart then continue end
+
+		local EntityData = Entities[Entity.Name]
+		if not EntityData then continue end
+		if List and List[EntityData.Alias] then continue end
+
+		local Distance = LocalPlayer:DistanceFromCharacter(Entity.PrimaryPart.Position)
+		if Distance < EntityDistances[Entity.Name] and Distance < Nearest.Distance then
+			if not CheckDisabled or Entity:GetAttribute("Inactive") ~= true then
+				Nearest.Distance = Distance
+				Nearest.Object = Entity
 			end
 		end
 	end
@@ -1390,18 +985,53 @@ Functions.GetNearestHidingSpot = function()
 	local Nearest = { Distance = math.huge, Object = nil }
 	local LastHideSpot = Character:FindFirstChild("LastHideSpot")
 
-	for _, Object in Objects.HidingSpots do
-		if Object.PrimaryPart and Object:FindFirstChild("HidePrompt") then
-			local Distance = LocalPlayer:DistanceFromCharacter(Object.PrimaryPart.Position)
-			if Distance < Object.HidePrompt.MaxActivationDistance and Distance < Nearest.Distance then
-				local Persistent = Functions.IsHidePersistent()
-				if not Persistent or (LastHideSpot and LastHideSpot.Value ~= Object) or not LastHideSpot then
-					Nearest.Distance = Distance
-					Nearest.Object = Object
-				end
+	local function IsHidingSpotName(Name)
+		if typeof(Name) ~= "string" then return false end
+		return string.find(string.lower(Name), "hidingspot") or string.find(string.lower(Name), "hiding_spot")
+	end
+
+	local function GetHidePrompt(Object)
+	if not Object then return nil end
+
+	local Prompt = Object:FindFirstChild("HidePrompt") or Object:FindFirstChild("HidingPrompt")
+	if Prompt then return Prompt end
+
+	for _, Child in Object:GetDescendants() do
+		if (Child:IsA("ProximityPrompt") or Child:IsA("InteractPrompt"))
+			and (Child.Name == "HidePrompt" or Child.Name == "HidingPrompt" or IsHidingSpotName(Child.Name))
+		then
+			return Child
+		end
+	end
+
+	if IsHidingSpotName(Object.Name) or IsHidingSpotName(Object.Parent and Object.Parent.Name) then
+		return Object:FindFirstChild("HidePrompt") or Object:FindFirstChild("HidingPrompt")
+	end
+
+	return nil
+	end
+
+	local function TryObject(Object)
+		if not Object or not Object:IsDescendantOf(Services.Workspace) then return end
+		if not Object.PrimaryPart and not Object:FindFirstChildOfClass("BasePart") then return end
+		local Prompt = GetHidePrompt(Object)
+		if not Prompt then return end
+		local PrimaryPart = Object.PrimaryPart or Object:FindFirstChildOfClass("BasePart")
+		if not PrimaryPart then return end
+		local Distance = LocalPlayer:DistanceFromCharacter(PrimaryPart.Position)
+		if Distance < Prompt.MaxActivationDistance and Distance < Nearest.Distance then
+			local Persistent = Functions.IsHidePersistent()
+			if not Persistent or (LastHideSpot and LastHideSpot.Value ~= Object) or not LastHideSpot then
+				Nearest.Distance = Distance
+				Nearest.Object = Object
 			end
 		end
 	end
+
+	for _, Object in Objects.HidingSpots do
+		TryObject(Object)
+	end
+
 	return Nearest.Object
 end
 
@@ -1475,20 +1105,8 @@ Globals.PromptContainer.Parent = GetHiddenContainer()
 
 local ESPBlacklist = {}
 
--- MotorReplication yoksa/yendien adlandirilmissa patlamasin diye guvenli ates
-Functions.FireMotor = function(...)
-	local Args = { ... }
-	local MR = RemotesFolder:FindFirstChild("MotorReplication")
-	if MR then pcall(function() MR:FireServer(table.unpack(Args)) end) end
-end
-
 Functions.AddESP = function(ESPOptions, RoomBased)
 	local Object = ESPOptions.Object
-
-	-- Olu obje (odasi silinmis kapi/esya vs.): hayalet ESP olusmasin
-	if not Object or Object.Parent == nil then
-		return
-	end
 
 	if table.find(ESPBlacklist, Object) then
 		return
@@ -1500,16 +1118,6 @@ Functions.AddESP = function(ESPOptions, RoomBased)
 
 		if ObjectRoom == CurrentRoom or (table.find(Objects.Doors, Object) and ObjectRoom == CurrentRoom + 1) then
 			Abysall.ESPLibrary:AddESP(ESPOptions)
-		end
-
-		-- Ayni objeye ikinci baglanti sizmasin: eskisi varsa once kopar.
-		-- Yoksa her toggle/oda degisiminde handler birikir, ESP titrer/bozulur.
-		local OldConn = ESPConnections[Object]
-		if OldConn then
-			pcall(function() OldConn:Disconnect() end)
-			ESPConnections[Object] = nil
-			local OldPos = table.find(Connections, OldConn)
-			if OldPos then table.remove(Connections, OldPos) end
 		end
 
 		local RoomConnection = LocalPlayer:GetAttributeChangedSignal("CurrentRoom"):Connect(function()
@@ -1623,25 +1231,31 @@ Functions.GetRandomCode = function()
 end
 
 local Window = Library:CreateWindow({
-	Title = "Abysall Hub",
-	Footer = "dsc.gg/abysallhub",
+	Title = "🎃 Abysall Hub Continued",
+	Footer = "dsc.gg/abysallhubcontinued",
 	NotifySide = "Right",
 	ShowCustomCursor = false,
 	AutoShow = true,
 	Center = true,
 	TabPadding = 3,
 	MenuFadeTime = 0,
-	CornerRadius = 2,
+	CornerRadius = 6,
 })
+
+
+
 
 Abysall.Interface.ApplyInfoTab(Window)
 
 local Tabs = {
-	General  = Window:AddTab("General", "house"),
+	General = Window:AddTab("General", "house"),
 	Exploits = Window:AddTab("Exploits", "shield"),
-	Visuals  = Window:AddTab("Visuals", "eye"),
-	Floors   = Window:AddTab("Floors", "earth"),
+	Visuals = Window:AddTab("Visuals", "eye"),
+	Floors = Window:AddTab("Floors", "earth"),
+	Archives = Window:AddTab("New - Archives", "rbxassetid://104508835882225"),
+	Stairwell = Window:AddTab("New - Stairwell", "rbxassetid://80017304328364"),
 }
+
 
 Groupboxes.General_Character = Tabs.General:AddLeftGroupbox("Character")
 Groupboxes.General_Character:AddSlider("SpeedBoostSlider", {
@@ -1682,7 +1296,7 @@ end)
 Toggles.NoclipToggle:AddKeyPicker("NoclipKeybind", {
 	Text = "Noclip", Default = "N", Mode = "Toggle", SyncToggleState = true
 })
-OnChange("RemoveAcceleration", function(Value)
+Toggles.RemoveAcceleration:OnChanged(function(Value)
 	for Index, Old in PartProperties do
 		Index.CustomPhysicalProperties = Value and CustomPhysics or Old
 	end
@@ -1702,17 +1316,17 @@ Groupboxes.General_Character:AddToggle("InfiniteJumps", {
 local OldJump = false
 local OldSlide = false
 
-OnChange("SpeedBoostToggle", function(Value)
+Toggles.SpeedBoostToggle:OnChanged(function(Value)
 	if Humanoid then
 		Humanoid.WalkSpeed = Functions.GetCurrentSpeed() + (Value and Options.SpeedBoostSlider.Value or 0)
 	end
 end)
-OnChange("EnableCharacterJump", function(Value)
+Toggles.EnableCharacterJump:OnChanged(function(Value)
 	if Character then
 		Character:SetAttribute("CanJump", Value and true or OldJump)
 	end
 end)
-OnChange("EnableCharacterSlide", function(Value)
+Toggles.EnableCharacterSlide:OnChanged(function(Value)
 	if Character then
 		Character:SetAttribute("CanSlide", Value and true or OldSlide)
 	end
@@ -1725,7 +1339,7 @@ Groupboxes.General_Self:AddToggle("DoorReachToggle", {
 Groupboxes.General_Self:AddToggle("DisableIdleKick", {
 	Text = "Disable Idle Kick", Default = false, Tooltip = "Prevents the kick from being idle for 20 minutes."
 })
-OnChange("DisableIdleKick", function(Value)
+Toggles.DisableIdleKick:OnChanged(function(Value)
 	if Functions.CheckCompatability({"getconnections"}) then
 		for _, Conn in Abysall.Environment.getconnections(LocalPlayer.Idled) do
 			if Value then Conn:Disable() else Conn:Enable() end
@@ -1733,7 +1347,7 @@ OnChange("DisableIdleKick", function(Value)
 	end
 end)
 LocalPlayer.Idled:Connect(function()
-	if ToggleOn("DisableIdleKick") then
+	if Toggles.DisableIdleKick.Value then
 		Services.VirtualUser:CaptureController()
 		Services.VirtualUser:ClickButton2(Vector2.new())
 	end
@@ -1755,12 +1369,12 @@ Options.PromptReachSlider:OnChanged(function(Value)
 		Prompt.MaxActivationDistance = Prompt:GetAttribute("MaxActivationDistance_Old") * Value
 	end
 end)
-OnChange("InstantPrompts", function(Value)
+Toggles.InstantPrompts:OnChanged(function(Value)
 	for _, Prompt in Objects.Prompts do
 		Prompt.HoldDuration = Value and 0 or Prompt:GetAttribute("HoldDuration_Old")
 	end
 end)
-OnChange("PromptClip", function(Value)
+Toggles.PromptClip:OnChanged(function(Value)
 	for _, Prompt in Objects.Prompts do
 		Prompt.RequiresLineOfSight = Value and false or Prompt:GetAttribute("RequiresLineOfSight_Old")
 	end
@@ -1770,16 +1384,11 @@ Groupboxes.Self_Automation = Tabs.General:AddRightGroupbox("Automation")
 Groupboxes.Self_Automation:AddToggle("AutoBreakerBox", {
 	Text = "Auto Breaker Box", Default = false, Tooltip = "Automatically solves the breaker box."
 })
-Groupboxes.Self_Automation:AddDivider()
-Groupboxes.Self_Automation:AddToggle("AutoPlay", {
-	Text = "Auto Play", Default = false,
-	Tooltip = "Kapi ilerletir, kilitler icin anahtar alir, 50. kapida kitaplari toplar ve kodu girer, 100. kapida breaker'i cozer.",
-})
 Groupboxes.Self_Automation:AddToggle("AutoSolveAnchors", {
 	Text = "Auto Solve Anchors", Default = false,
 	Tooltip = "Automatically enters the correct code into anchors when you are near them."
 })
-OnChange("AutoBreakerBox", function(Value)
+Toggles.AutoBreakerBox:OnChanged(function(Value)
 	if Value and CurrentRooms:FindFirstChild("ElevatorBreaker", true) then
 		if not Globals.BreakerBoxInteracted then
 			if not Globals.BreakerBoxNotified then
@@ -1793,7 +1402,6 @@ OnChange("AutoBreakerBox", function(Value)
 end)
 
 Groupboxes.Self_Automation:AddToggle("AutoHeartbeatMinigame", { Text = "Auto Heartbeat Minigame", Default = false, Tooltip = "Prevents the 'Figure' minigame from ever failing.", Disabled = not Functions.CheckCompatability({"hookmetamethod", "newcclosure", "getnamecallmethod"}), DisabledTooltip = Globals.IncompatibleMessage })
-Groupboxes.Self_Automation:AddToggle("RansomFreeze", { Text = "Freeze on Ransom", Default = false, Tooltip = "Stops your movement when 'Ransom' appears in The Archives (it attacks movement, demands 500 gold). Restores speed after." })
 Groupboxes.Self_Automation:AddDivider()
 Groupboxes.Self_Automation:AddToggle("AutoUnlockPadlockToggle", {
 	Text = "Auto Unlock Padlock", Default = false, Tooltip = "Automatically enters the code into the library padlock."
@@ -1806,17 +1414,46 @@ Groupboxes.Self_Automation:AddToggle("AutoLibraryGuessCode", {
 	Tooltip = "Attempts to guess the library code, but collecting some books is also necessary."
 })
 Groupboxes.Self_Automation:AddDivider()
+Groupboxes.Self_Automation:AddToggle("AutoLibrary", {
+	Text = "Auto Library", Default = false,
+	Tooltip = "Automatically gets books and paper."
+})
+Groupboxes.Self_Automation:AddToggle("SkipSeekHotel", {
+	Text = "Skip Seek (Hotel)",
+	Default = false,
+	Tooltip = "Skips the entire Seek sections.",
+})
+Groupboxes.Self_Automation:AddToggle("AutoBreakerRoom", {
+	Text = "Auto Breaker Room",
+	Default = false,
+	Tooltip = "Automatically completes the breaker sequence in Hotel Room 100.",
+})
+Groupboxes.Self_Automation:AddDivider()
+Toggles.AutoHotel = Groupboxes.Self_Automation:AddToggle("AutoHotel", {
+	Text = "Auto Hotel",
+	Tooltip = "Automatically progresses through the hotel floor.",
+	Risky = Floor ~= "Ballz",
+	Default = false
+})
+Toggles.AutoHotelIgnoreEntities = Groupboxes.Self_Automation:AddToggle("AutoHotelIgnoreEntities", {
+	Text = "Ignore Entities",
+	Tooltip = "Skip all entity waits and pauses.",
+	Default = false
+})
+Groupboxes.Self_Automation:AddDivider()
 Groupboxes.Self_Automation:AddToggle("AutoInteractToggle", {
 	Text = "Auto Interact", Default = false, Tooltip = "Automatically triggers nearby prompts."
 })
 Toggles.AutoInteractToggle:AddKeyPicker("AutoInteractKeybind", {
-	Text = "Auto Interact", Default = "R",
-	Mode = Library.IsMobile and "Toggle" or "Hold", SyncToggleState = true
+    Text = "Auto Interact",
+    Default = "R",
+    Mode = "Toggle",
+    SyncToggleState = true
 })
 Groupboxes.Self_Automation:AddDropdown("AutoInteractIgnoreList", {
 	Text = "Ignore List",
-	Values = { "Glitch Fragments", "Jeff Items", "Dropped Items", "Currency", "Minecarts", "Locks", "Office Chairs", "Large Printers", "Vending Machines", "Seats", "Trash Cans" },
-	Default = { "Glitch Fragments", "Jeff Items", "Dropped Items", "Office Chairs", "Large Printers", "Vending Machines", "Seats", "Trash Cans" },
+	Values = { "Glitch Fragments", "Jeff Items", "Dropped Items", "Currency", "Minecarts", "Locks" },
+	Default = { "Glitch Fragments", "Jeff Items", "Dropped Items" },
 	Multi = true, AllowNull = true
 })
 Groupboxes.Self_Automation:AddDivider()
@@ -1829,7 +1466,7 @@ Toggles.AutoClosetToggle:AddKeyPicker("AutoClosetKeybind", {
 })
 Groupboxes.Self_Automation:AddDropdown("AutoClosetEntityList", {
 	Text = "Ignore List",
-	Values = { "Rush", "Ambush", "Blitz", "A-60", "A-120", "AR0xMBUSH", "RNIUSHCG==" },
+	Values = { "Rush", "Ambush", "Blitz", "DronesStampede", "Scribbles", "A-60", "A-120", "AR0xMBUSH", "RNIUSHCG==" },
 	Multi = true, AllowNull = true
 })
 Groupboxes.Self_Automation:AddToggle("SpectateEntityToggle", {
@@ -1876,7 +1513,1250 @@ Groupboxes.Self_Misc:AddButton({
 	end
 })
 
-Groupboxes.Exploits_Bypass = Tabs.Exploits:AddLeftGroupbox("Bypass")
+
+Tabs.General:UpdateWarningBox({
+	Visible = true,
+	Title = "Risk Warning",
+	Text = "Features highlighted in red are risky.",
+})
+
+
+Toggles.SkipSeekHotel:OnChanged(function(Value)
+	if not Value then return end
+	if Floor ~= "Hotel" then return end
+
+	task.spawn(function()
+		print("started")
+
+		local currentRooms
+
+		repeat
+			if not Toggles.SkipSeekHotel.Value or Floor ~= "Hotel" then
+				return
+			end
+			currentRooms = workspace:FindFirstChild("CurrentRooms")
+			task.wait()
+		until currentRooms
+
+		print("got currentrooms")
+
+		local lastTriggerRoom = nil
+
+		while Toggles.SkipSeekHotel.Value and Floor == "Hotel" do
+			local triggerRoom = nil
+
+			print("waiting for trigger")
+
+			repeat
+				if not Toggles.SkipSeekHotel.Value or Floor ~= "Hotel" then
+					return
+				end
+
+				currentRooms = workspace:FindFirstChild("CurrentRooms")
+				local currentRoomNum = tonumber(LocalPlayer:GetAttribute("CurrentRoom"))
+
+				if currentRoomNum and currentRoomNum ~= lastTriggerRoom then
+					local room = currentRooms and currentRooms:FindFirstChild(tostring(currentRoomNum))
+					if room then
+						local trigger = room:WaitForChild("TriggerEventCollision", 0.5)
+						if trigger then
+							triggerRoom = currentRoomNum
+							print("found trigger in", triggerRoom)
+						end
+					end
+				end
+
+				task.wait()
+			until triggerRoom
+
+			lastTriggerRoom = triggerRoom
+
+			local roomNum = triggerRoom
+
+			while Toggles.SkipSeekHotel.Value and Floor == "Hotel" do
+				roomNum += 1
+				print("looking for room", roomNum)
+
+				local room
+				repeat
+					if not Toggles.SkipSeekHotel.Value or Floor ~= "Hotel" then
+						return
+					end
+					currentRooms = workspace:FindFirstChild("CurrentRooms")
+					room = currentRooms and currentRooms:FindFirstChild(tostring(roomNum))
+					task.wait()
+				until room
+
+				print("found room", roomNum)
+
+				local hasSeekArm = false
+				local assets = room:FindFirstChild("Assets")
+				if assets then
+					for _, child in ipairs(assets:GetChildren()) do
+						if child.Name == "Seek_Arm" then
+							hasSeekArm = true
+							print("found seek arm")
+							break
+						end
+					end
+				end
+
+				local door
+				repeat
+					if not Toggles.SkipSeekHotel.Value or Floor ~= "Hotel" then
+						return
+					end
+					door = room:FindFirstChild("Door", true)
+					task.wait()
+				until door
+
+				print("found door, teleporting")
+
+				repeat
+					if not Toggles.SkipSeekHotel.Value or Floor ~= "Hotel" then
+						return
+					end
+					if Character then
+						Character:PivotTo(door:GetPivot())
+					end
+					task.wait()
+				until door:GetAttribute("Opened") == true
+
+				print("door opened")
+
+				if hasSeekArm then
+					if not Character then
+						return
+					end
+
+					print("voiding")
+
+					local voidCFrame = Character:GetPivot() + Vector3.new(0, -2500, 0)
+
+					task.wait(0.25)
+
+					for _ = 1, 20 do
+						Character:PivotTo(voidCFrame)
+						task.wait()
+					end
+
+					task.wait(0.3)
+
+					for _ = 1, 15 do
+						Character:PivotTo(voidCFrame)
+						task.wait()
+					end
+
+					task.wait(0.2)
+
+					for _ = 1, 10 do
+						Character:PivotTo(voidCFrame)
+						task.wait()
+					end
+
+					print("done voiding")
+					break
+				end
+			end
+		end
+	end)
+end)
+
+Toggles.AutoLibrary:OnChanged(function(AutoLibraryEnabled)
+	if AutoLibraryConnection then
+		task.cancel(AutoLibraryConnection)
+		AutoLibraryConnection = nil
+	end
+
+	if AutoLibraryRoomConnection then
+		AutoLibraryRoomConnection:Disconnect()
+		AutoLibraryRoomConnection = nil
+	end
+
+	if not AutoLibraryEnabled then
+		return
+	end
+
+	AutoLibraryConnection = task.spawn(function()
+		local AutoLibraryPlayers = game:GetService("Players")
+		local AutoLibraryLocalPlayer = AutoLibraryPlayers.LocalPlayer
+		local AutoLibraryCharacter = AutoLibraryLocalPlayer.Character or AutoLibraryLocalPlayer.CharacterAdded:Wait()
+		local AutoLibraryHumanoidRootPart = AutoLibraryCharacter:WaitForChild("HumanoidRootPart")
+
+		local AutoLibraryCurrentRooms = workspace:WaitForChild("CurrentRooms")
+		local AutoLibraryRoom50 = AutoLibraryCurrentRooms:WaitForChild("50")
+		local AutoLibraryLiveHintBooks = {}
+		local AutoLibraryHintPaperObtained = false
+
+		local function AutoLibraryIsInRoom50(AutoLibraryObject)
+			return AutoLibraryObject
+				and AutoLibraryObject:IsDescendantOf(AutoLibraryRoom50)
+				and AutoLibraryObject:IsDescendantOf(AutoLibraryCurrentRooms)
+				and AutoLibraryObject:IsDescendantOf(workspace)
+		end
+
+		local function AutoLibraryIsActuallyInRoom50()
+			return tonumber(AutoLibraryLocalPlayer:GetAttribute("CurrentRoom")) == 50
+		end
+
+		while AutoLibraryEnabled and not AutoLibraryIsActuallyInRoom50() do
+			task.wait(0.05)
+		end
+
+		if not AutoLibraryEnabled then
+			return
+		end
+
+		local function AutoLibraryHasHintPaper()
+			AutoLibraryCharacter = AutoLibraryLocalPlayer.Character
+
+			if not AutoLibraryCharacter then
+				return false
+			end
+
+			local AutoLibraryBackpackPaper = AutoLibraryLocalPlayer.Backpack:FindFirstChild("LibraryHintPaper", true)
+			local AutoLibraryCharacterPaper = AutoLibraryCharacter:FindFirstChild("LibraryHintPaper", true)
+
+			return AutoLibraryBackpackPaper ~= nil or AutoLibraryCharacterPaper ~= nil
+		end
+
+		local function AutoLibraryGetObjectCFrame(AutoLibraryObject)
+			if not AutoLibraryIsActuallyInRoom50() then
+				return nil
+			end
+
+			if not AutoLibraryIsInRoom50(AutoLibraryObject) then
+				return nil
+			end
+
+			if AutoLibraryObject:IsA("Model") then
+				return AutoLibraryObject:GetPivot()
+			elseif AutoLibraryObject:IsA("BasePart") then
+				return AutoLibraryObject.CFrame
+			end
+
+			local AutoLibraryObjectPart = AutoLibraryObject:FindFirstChildWhichIsA("BasePart", true)
+
+			if AutoLibraryObjectPart then
+				return AutoLibraryObjectPart.CFrame
+			end
+
+			return nil
+		end
+
+		local function AutoLibraryFindBooks(AutoLibraryObject)
+			if not AutoLibraryIsActuallyInRoom50() then
+				return
+			end
+
+			if not AutoLibraryIsInRoom50(AutoLibraryObject) then
+				return
+			end
+
+			if AutoLibraryObject.Name == "LiveHintBook" then
+				if not table.find(AutoLibraryLiveHintBooks, AutoLibraryObject) then
+					table.insert(AutoLibraryLiveHintBooks, AutoLibraryObject)
+				end
+			end
+
+			for _, AutoLibraryDescendant in ipairs(AutoLibraryObject:GetDescendants()) do
+				if AutoLibraryDescendant.Name == "LiveHintBook"
+					and AutoLibraryIsInRoom50(AutoLibraryDescendant) then
+
+					if not table.find(AutoLibraryLiveHintBooks, AutoLibraryDescendant) then
+						table.insert(AutoLibraryLiveHintBooks, AutoLibraryDescendant)
+					end
+				end
+			end
+		end
+
+		for _, AutoLibraryDescendant in ipairs(AutoLibraryRoom50:GetDescendants()) do
+			if not AutoLibraryEnabled or not AutoLibraryIsActuallyInRoom50() then
+				return
+			end
+
+			if AutoLibraryDescendant.Name == "LiveHintBook"
+				and AutoLibraryIsInRoom50(AutoLibraryDescendant) then
+
+				if not table.find(AutoLibraryLiveHintBooks, AutoLibraryDescendant) then
+					table.insert(AutoLibraryLiveHintBooks, AutoLibraryDescendant)
+				end
+			end
+		end
+
+		AutoLibraryRoomConnection = AutoLibraryRoom50.DescendantAdded:Connect(function(AutoLibraryAddedObject)
+			if not AutoLibraryEnabled then
+				return
+			end
+
+			if not AutoLibraryIsActuallyInRoom50() then
+				return
+			end
+
+			if not AutoLibraryIsInRoom50(AutoLibraryAddedObject) then
+				return
+			end
+
+			AutoLibraryFindBooks(AutoLibraryAddedObject)
+		end)
+
+		while AutoLibraryEnabled
+			and AutoLibraryIsActuallyInRoom50()
+			and #AutoLibraryLiveHintBooks < 3 do
+
+			for _, AutoLibraryDescendant in ipairs(AutoLibraryRoom50:GetDescendants()) do
+				if not AutoLibraryEnabled or not AutoLibraryIsActuallyInRoom50() then
+					return
+				end
+
+				if AutoLibraryDescendant.Name == "LiveHintBook"
+					and AutoLibraryIsInRoom50(AutoLibraryDescendant)
+					and not table.find(AutoLibraryLiveHintBooks, AutoLibraryDescendant) then
+
+					table.insert(AutoLibraryLiveHintBooks, AutoLibraryDescendant)
+				end
+			end
+
+			if #AutoLibraryLiveHintBooks >= 3 then
+				break
+			end
+
+			task.wait(0.05)
+		end
+
+		while AutoLibraryEnabled
+			and AutoLibraryIsActuallyInRoom50()
+			and not AutoLibraryHintPaperObtained do
+
+			if AutoLibraryHasHintPaper() then
+				AutoLibraryHintPaperObtained = true
+				break
+			end
+
+			for AutoLibraryIndex = #AutoLibraryLiveHintBooks, 1, -1 do
+				if not AutoLibraryIsActuallyInRoom50() then
+					return
+				end
+
+				local AutoLibraryLiveHintBook = AutoLibraryLiveHintBooks[AutoLibraryIndex]
+
+				if not AutoLibraryIsInRoom50(AutoLibraryLiveHintBook) then
+					table.remove(AutoLibraryLiveHintBooks, AutoLibraryIndex)
+					continue
+				end
+
+				while AutoLibraryEnabled
+					and AutoLibraryIsActuallyInRoom50()
+					and not AutoLibraryHintPaperObtained
+					and AutoLibraryLiveHintBook.Parent
+					and AutoLibraryIsInRoom50(AutoLibraryLiveHintBook) do
+
+					if AutoLibraryHasHintPaper() then
+						AutoLibraryHintPaperObtained = true
+						break
+					end
+
+					AutoLibraryCharacter = AutoLibraryLocalPlayer.Character or AutoLibraryLocalPlayer.CharacterAdded:Wait()
+					AutoLibraryHumanoidRootPart = AutoLibraryCharacter:FindFirstChild("HumanoidRootPart")
+
+					if not AutoLibraryHumanoidRootPart then
+						task.wait()
+						continue
+					end
+
+					local AutoLibraryBookCFrame = AutoLibraryGetObjectCFrame(AutoLibraryLiveHintBook)
+
+					if AutoLibraryBookCFrame
+						and AutoLibraryIsActuallyInRoom50()
+						and AutoLibraryIsInRoom50(AutoLibraryLiveHintBook) then
+
+						AutoLibraryHumanoidRootPart.CFrame = AutoLibraryBookCFrame
+					end
+
+					for _, AutoLibraryPromptDescendant in ipairs(AutoLibraryLiveHintBook:GetDescendants()) do
+						if AutoLibraryPromptDescendant:IsA("ProximityPrompt")
+							and AutoLibraryIsInRoom50(AutoLibraryPromptDescendant)
+							and AutoLibraryIsActuallyInRoom50() then
+
+							fireproximityprompt(AutoLibraryPromptDescendant)
+						end
+					end
+
+					task.wait(0.05)
+				end
+
+				if AutoLibraryHintPaperObtained then
+					break
+				end
+			end
+
+			if AutoLibraryHasHintPaper() then
+				AutoLibraryHintPaperObtained = true
+				break
+			end
+
+			local AutoLibraryHintPaper = AutoLibraryRoom50:FindFirstChild("LibraryHintPaper", true)
+
+			if AutoLibraryHintPaper
+				and AutoLibraryIsInRoom50(AutoLibraryHintPaper)
+				and AutoLibraryIsActuallyInRoom50() then
+
+				while AutoLibraryEnabled
+					and AutoLibraryIsActuallyInRoom50()
+					and not AutoLibraryHintPaperObtained
+					and AutoLibraryHintPaper.Parent
+					and AutoLibraryIsInRoom50(AutoLibraryHintPaper) do
+
+					if AutoLibraryHasHintPaper() then
+						AutoLibraryHintPaperObtained = true
+						break
+					end
+
+					AutoLibraryCharacter = AutoLibraryLocalPlayer.Character or AutoLibraryLocalPlayer.CharacterAdded:Wait()
+					AutoLibraryHumanoidRootPart = AutoLibraryCharacter:FindFirstChild("HumanoidRootPart")
+
+					if not AutoLibraryHumanoidRootPart then
+						task.wait()
+						continue
+					end
+
+					local AutoLibraryPaperCFrame = AutoLibraryGetObjectCFrame(AutoLibraryHintPaper)
+
+					if AutoLibraryPaperCFrame
+						and AutoLibraryIsActuallyInRoom50()
+						and AutoLibraryIsInRoom50(AutoLibraryHintPaper) then
+
+						AutoLibraryHumanoidRootPart.CFrame = AutoLibraryPaperCFrame * CFrame.new(0, 5, 0)
+					end
+
+					for _, AutoLibraryPromptDescendant in ipairs(AutoLibraryHintPaper:GetDescendants()) do
+						if AutoLibraryPromptDescendant:IsA("ProximityPrompt")
+							and AutoLibraryIsInRoom50(AutoLibraryPromptDescendant)
+							and AutoLibraryIsActuallyInRoom50() then
+
+							fireproximityprompt(AutoLibraryPromptDescendant)
+						end
+					end
+
+					task.wait(0.05)
+				end
+			end
+
+			task.wait(0.05)
+		end
+	end)
+end)
+
+Toggles.AutoBreakerRoom:OnChanged(function(AutoBreakerRoomEnabled)
+	if AutoBreakerRoomConnection then
+		task.cancel(AutoBreakerRoomConnection)
+		AutoBreakerRoomConnection = nil
+	end
+
+	if AutoBreakerRoomRoomConnection then
+		AutoBreakerRoomRoomConnection:Disconnect()
+		AutoBreakerRoomRoomConnection = nil
+	end
+
+	if not AutoBreakerRoomEnabled then
+		return
+	end
+
+	local AutoBreakerRoomGateFireTime = 5
+	local AutoBreakerRoomWaitAfterLever = 5
+	local AutoBreakerRoomBreakerSecondTime = 10
+	local AutoBreakerRoomWaitBeforeWeb = 4
+	local AutoBreakerRoomWebDuration = 20
+
+	AutoBreakerRoomConnection = task.spawn(function()
+		local AutoBreakerRoomPlayers = game:GetService("Players")
+		local AutoBreakerRoomCurrentRooms = workspace:WaitForChild("CurrentRooms")
+		local AutoBreakerRoom100 = AutoBreakerRoomCurrentRooms:WaitForChild("100")
+
+		local function AutoBreakerRoomIsActuallyInRoom100()
+			return tonumber(AutoBreakerRoomPlayers.LocalPlayer:GetAttribute("CurrentRoom")) == 100
+		end
+
+		local function AutoBreakerRoomIsInRoom100(AutoBreakerRoomObject)
+			return AutoBreakerRoomObject
+				and AutoBreakerRoomObject.Parent
+				and AutoBreakerRoomObject:IsDescendantOf(AutoBreakerRoom100)
+				and AutoBreakerRoomObject:IsDescendantOf(AutoBreakerRoomCurrentRooms)
+		end
+
+		local function AutoBreakerRoomGetObjectCFrame(AutoBreakerRoomObject)
+			if not AutoBreakerRoomIsActuallyInRoom100() or not AutoBreakerRoomIsInRoom100(AutoBreakerRoomObject) then
+				return nil
+			end
+
+			if AutoBreakerRoomObject:IsA("Model") then
+				return AutoBreakerRoomObject:GetPivot()
+			elseif AutoBreakerRoomObject:IsA("BasePart") then
+				return AutoBreakerRoomObject.CFrame
+			end
+
+			local AutoBreakerRoomPart = AutoBreakerRoomObject:FindFirstChildWhichIsA("BasePart", true)
+			return AutoBreakerRoomPart and AutoBreakerRoomPart.CFrame
+		end
+
+		local function AutoBreakerRoomGetHRP()
+			local AutoBreakerRoomCharacter = AutoBreakerRoomPlayers.LocalPlayer.Character
+			return AutoBreakerRoomCharacter and AutoBreakerRoomCharacter:FindFirstChild("HumanoidRootPart")
+		end
+
+		local function AutoBreakerRoomActivate(AutoBreakerRoomObject)
+			if not AutoBreakerRoomObject then
+				return
+			end
+
+			if AutoBreakerRoomObject:IsA("ProximityPrompt") then
+				fireproximityprompt(AutoBreakerRoomObject)
+				return
+			end
+
+			for _, AutoBreakerRoomDescendant in ipairs(AutoBreakerRoomObject:GetDescendants()) do
+				if AutoBreakerRoomDescendant:IsA("ProximityPrompt") then
+					fireproximityprompt(AutoBreakerRoomDescendant)
+				end
+			end
+		end
+
+		local function AutoBreakerRoomConstantTPAndActivate(AutoBreakerRoomTarget, AutoBreakerRoomDuration, AutoBreakerRoomInterval, AutoBreakerRoomOffset)
+			AutoBreakerRoomInterval = AutoBreakerRoomInterval or 0.04
+			AutoBreakerRoomOffset = AutoBreakerRoomOffset or CFrame.new()
+			local AutoBreakerRoomEndTime = os.clock() + (AutoBreakerRoomDuration or 3)
+
+			while AutoBreakerRoomEnabled
+				and AutoBreakerRoomIsActuallyInRoom100()
+				and AutoBreakerRoomIsInRoom100(AutoBreakerRoomTarget)
+				and os.clock() < AutoBreakerRoomEndTime do
+
+				local AutoBreakerRoomHRP = AutoBreakerRoomGetHRP()
+				local AutoBreakerRoomCF = AutoBreakerRoomGetObjectCFrame(AutoBreakerRoomTarget)
+
+				if AutoBreakerRoomHRP and AutoBreakerRoomCF then
+					AutoBreakerRoomHRP.CFrame = AutoBreakerRoomCF * AutoBreakerRoomOffset
+				end
+
+				AutoBreakerRoomActivate(AutoBreakerRoomTarget)
+				task.wait(AutoBreakerRoomInterval)
+			end
+		end
+
+		while AutoBreakerRoomEnabled do
+			while AutoBreakerRoomEnabled and not AutoBreakerRoomIsActuallyInRoom100() do
+				task.wait(0.1)
+			end
+
+			if not AutoBreakerRoomEnabled then
+				return
+			end
+
+			local AutoBreakerRoomPoles = {}
+
+			while AutoBreakerRoomEnabled and AutoBreakerRoomIsActuallyInRoom100() do
+				AutoBreakerRoomPoles = {}
+
+				for _, AutoBreakerRoomDescendant in ipairs(AutoBreakerRoom100:GetDescendants()) do
+					if AutoBreakerRoomDescendant.Name == "LiveBreakerPolePickup" and AutoBreakerRoomIsInRoom100(AutoBreakerRoomDescendant) then
+						if not table.find(AutoBreakerRoomPoles, AutoBreakerRoomDescendant) then
+							table.insert(AutoBreakerRoomPoles, AutoBreakerRoomDescendant)
+						end
+					end
+				end
+
+				if #AutoBreakerRoomPoles == 0 then
+					break
+				end
+
+				for _, AutoBreakerRoomPole in ipairs(AutoBreakerRoomPoles) do
+					if not AutoBreakerRoomEnabled or not AutoBreakerRoomIsActuallyInRoom100() then
+						break
+					end
+
+					if AutoBreakerRoomIsInRoom100(AutoBreakerRoomPole) then
+						AutoBreakerRoomConstantTPAndActivate(AutoBreakerRoomPole, 2.8, 0.03)
+						task.wait(0.12)
+					end
+				end
+
+				task.wait(0.05)
+			end
+
+			if not AutoBreakerRoomEnabled or not AutoBreakerRoomIsActuallyInRoom100() then
+				continue
+			end
+
+			local AutoBreakerRoomIndustrialGate = AutoBreakerRoom100:FindFirstChild("IndustrialGate")
+			local AutoBreakerRoomBox = AutoBreakerRoomIndustrialGate and AutoBreakerRoomIndustrialGate:FindFirstChild("Box")
+			local AutoBreakerRoomLever = AutoBreakerRoomBox and AutoBreakerRoomBox:FindFirstChild("Lever")
+			local AutoBreakerRoomActivateEventPrompt = AutoBreakerRoomBox and AutoBreakerRoomBox:FindFirstChild("ActivateEventPrompt")
+
+			if AutoBreakerRoomActivateEventPrompt and AutoBreakerRoomLever then
+				local function AutoBreakerRoomGetLeverCFrame()
+					if AutoBreakerRoomLever:IsA("Model") then
+						return AutoBreakerRoomLever:GetPivot()
+					elseif AutoBreakerRoomLever:IsA("BasePart") then
+						return AutoBreakerRoomLever.CFrame
+					end
+					local AutoBreakerRoomPart = AutoBreakerRoomLever:FindFirstChildWhichIsA("BasePart", true)
+					return AutoBreakerRoomPart and AutoBreakerRoomPart.CFrame
+				end
+
+				local AutoBreakerRoomInitialLeverCFrame = AutoBreakerRoomGetLeverCFrame()
+				local AutoBreakerRoomLeverEndTime = os.clock() + 10
+
+				while AutoBreakerRoomEnabled
+					and AutoBreakerRoomIsActuallyInRoom100()
+					and AutoBreakerRoomIsInRoom100(AutoBreakerRoomLever)
+					and os.clock() < AutoBreakerRoomLeverEndTime do
+
+					local AutoBreakerRoomCurrentLeverCFrame = AutoBreakerRoomGetLeverCFrame()
+
+					if AutoBreakerRoomCurrentLeverCFrame and AutoBreakerRoomInitialLeverCFrame
+						and AutoBreakerRoomCurrentLeverCFrame ~= AutoBreakerRoomInitialLeverCFrame then
+						break
+					end
+
+					local AutoBreakerRoomHRP = AutoBreakerRoomGetHRP()
+					local AutoBreakerRoomCF = AutoBreakerRoomGetObjectCFrame(AutoBreakerRoomBox)
+
+					if AutoBreakerRoomHRP and AutoBreakerRoomCF then
+						AutoBreakerRoomHRP.CFrame = AutoBreakerRoomCF
+					end
+
+					AutoBreakerRoomActivate(AutoBreakerRoomActivateEventPrompt)
+					task.wait(0.04)
+				end
+			end
+
+			if not AutoBreakerRoomEnabled or not AutoBreakerRoomIsActuallyInRoom100() then
+				continue
+			end
+
+			task.wait(AutoBreakerRoomWaitAfterLever)
+
+			if not AutoBreakerRoomEnabled or not AutoBreakerRoomIsActuallyInRoom100() then
+				continue
+			end
+
+			local AutoBreakerRoomElevatorBreakerEmpty = AutoBreakerRoom100:FindFirstChild("ElevatorBreakerEmpty")
+			if not AutoBreakerRoomElevatorBreakerEmpty then
+				continue
+			end
+
+			local AutoBreakerRoomBreakerPrompt = AutoBreakerRoomElevatorBreakerEmpty:FindFirstChild("Prompt")
+			if not AutoBreakerRoomBreakerPrompt then
+				continue
+			end
+
+			local AutoBreakerRoomBreakerOffset = CFrame.new(0, -1.8, 0)
+
+			while AutoBreakerRoomEnabled and AutoBreakerRoomIsActuallyInRoom100() do
+				if AutoBreakerRoomElevatorBreakerEmpty:FindFirstChild("BreakerSwitchInBox") then
+					break
+				end
+
+				local AutoBreakerRoomHRP = AutoBreakerRoomGetHRP()
+				local AutoBreakerRoomCF = AutoBreakerRoomGetObjectCFrame(AutoBreakerRoomElevatorBreakerEmpty)
+
+				if AutoBreakerRoomHRP and AutoBreakerRoomCF then
+					AutoBreakerRoomHRP.CFrame = AutoBreakerRoomCF * AutoBreakerRoomBreakerOffset
+				end
+
+				AutoBreakerRoomActivate(AutoBreakerRoomBreakerPrompt)
+				task.wait(0.04)
+			end
+
+			if not AutoBreakerRoomEnabled or not AutoBreakerRoomIsActuallyInRoom100() then
+				continue
+			end
+
+			task.wait(10)
+
+			AutoBreakerRoomConstantTPAndActivate(
+				AutoBreakerRoomElevatorBreakerEmpty,
+				AutoBreakerRoomBreakerSecondTime,
+				0.04,
+				AutoBreakerRoomBreakerOffset
+			)
+
+			task.wait(AutoBreakerRoomWaitBeforeWeb)
+
+			if not AutoBreakerRoomEnabled or not AutoBreakerRoomIsActuallyInRoom100() then
+				continue
+			end
+
+			local AutoBreakerRoomElevatorCar = AutoBreakerRoom100:FindFirstChild("ElevatorCar")
+			local AutoBreakerRoomWeb = AutoBreakerRoomElevatorCar and AutoBreakerRoomElevatorCar:FindFirstChild("Web", true)
+
+			if AutoBreakerRoomWeb then
+				local AutoBreakerRoomEndTime = os.clock() + AutoBreakerRoomWebDuration
+
+				while AutoBreakerRoomEnabled and AutoBreakerRoomIsActuallyInRoom100() and os.clock() < AutoBreakerRoomEndTime do
+					local AutoBreakerRoomHRP = AutoBreakerRoomGetHRP()
+					local AutoBreakerRoomCF = AutoBreakerRoomGetObjectCFrame(AutoBreakerRoomWeb)
+
+					if AutoBreakerRoomHRP and AutoBreakerRoomCF then
+						AutoBreakerRoomHRP.CFrame = AutoBreakerRoomCF
+					end
+
+					task.wait(0.04)
+				end
+			end
+
+			while AutoBreakerRoomEnabled and AutoBreakerRoomIsActuallyInRoom100() do
+				task.wait(0.5)
+			end
+		end
+	end)
+end)
+
+
+
+local AutoHotelConnection
+local AutoHotelLibraryConnection
+local AutoHotelLibraryRoomConnection
+local AutoHotelSeekConnection
+local AutoHotelEntityPause = false
+local AutoHotelRoomProcessTime = 0.5
+local AutoHotelProcessedRooms = {}
+
+local AutoHotelEntityNames = {
+	["RushMoving"] = true,
+	["Scribbles"] = true,
+	["BashMoving"] = true,
+	["DronesStampede"] = true,
+	["AmbushMoving"] = true,
+	["A60"] = true,
+	["A120"] = true,
+	["GlitchRush"] = true,
+	["GlitchAmbush"] = true,
+	["BackdoorRush"] = true,
+	["CustomEntity"] = true,
+}
+
+local function AutoHotelIsEntityPresent()
+	if Toggles.AutoHotelIgnoreEntities and Toggles.AutoHotelIgnoreEntities.Value then
+		return false
+	end
+	for _, AutoHotelChild in ipairs(workspace:GetChildren()) do
+		if AutoHotelEntityNames[AutoHotelChild.Name] then
+			return true
+		end
+	end
+	return false
+end
+
+local function AutoHotelWaitForEntities(AutoHotelSeconds)
+	if Toggles.AutoHotelIgnoreEntities and Toggles.AutoHotelIgnoreEntities.Value then
+		return
+	end
+
+	task.wait(AutoHotelSeconds or 5)
+
+	while AutoHotelIsEntityPresent() do
+		task.wait(0.15)
+	end
+end
+
+local function AutoHotelGetNextClosedDoor()
+	if not Character then return nil, nil end
+
+	local AutoHotelGameData = game:GetService("ReplicatedStorage"):FindFirstChild("GameData")
+	if not AutoHotelGameData then return nil, nil end
+
+	local AutoHotelLatestRoom = AutoHotelGameData:FindFirstChild("LatestRoom")
+	if not AutoHotelLatestRoom then return nil, nil end
+
+	local AutoHotelStartRoom = AutoHotelLatestRoom.Value
+	local AutoHotelBestDoor, AutoHotelBestNumber = nil, math.huge
+	local AutoHotelCurrentRooms = workspace:FindFirstChild("CurrentRooms")
+
+	if AutoHotelCurrentRooms then
+		for _, AutoHotelRoom in ipairs(AutoHotelCurrentRooms:GetChildren()) do
+			local AutoHotelRoomNum = tonumber(AutoHotelRoom.Name)
+			if AutoHotelRoomNum and AutoHotelRoomNum ~= 100 and AutoHotelRoomNum >= AutoHotelStartRoom and AutoHotelRoomNum < AutoHotelBestNumber then
+				local AutoHotelDoor = AutoHotelRoom:FindFirstChild("Door")
+				if AutoHotelDoor and AutoHotelDoor:IsA("Model") then
+					local AutoHotelOpenAttr = AutoHotelDoor:GetAttribute("Open")
+					if AutoHotelOpenAttr == false or AutoHotelOpenAttr == nil then
+						AutoHotelBestNumber = AutoHotelRoomNum
+						AutoHotelBestDoor = AutoHotelDoor
+					end
+				end
+			end
+		end
+	end
+
+	return AutoHotelBestDoor, AutoHotelBestNumber
+end
+
+local function AutoHotelFindKeyObtain(AutoHotelRoom)
+	local AutoHotelFound = nil
+	local function AutoHotelScan(AutoHotelParent)
+		if AutoHotelFound then return end
+		for _, AutoHotelChild in ipairs(AutoHotelParent:GetChildren()) do
+			if AutoHotelChild.Name == "KeyObtain" then
+				AutoHotelFound = AutoHotelChild
+				return
+			end
+			AutoHotelScan(AutoHotelChild)
+			if AutoHotelFound then return end
+		end
+	end
+	AutoHotelScan(AutoHotelRoom)
+	return AutoHotelFound
+end
+
+local function AutoHotelHandleKey(AutoHotelRoomNum)
+	local AutoHotelCurrentRooms = workspace:FindFirstChild("CurrentRooms")
+	if not AutoHotelCurrentRooms then return false end
+
+	local AutoHotelRoom = AutoHotelCurrentRooms:FindFirstChild(tostring(AutoHotelRoomNum))
+	if not AutoHotelRoom then return false end
+
+	local AutoHotelDoor = AutoHotelRoom:FindFirstChild("Door")
+	if not AutoHotelDoor or not AutoHotelDoor:FindFirstChild("Lock") then
+		return false
+	end
+
+	local AutoHotelKeyObtain = AutoHotelFindKeyObtain(AutoHotelRoom)
+	if not AutoHotelKeyObtain then return false end
+
+	local AutoHotelStart = tick()
+	while tick() - AutoHotelStart < 12 do
+		if LocalPlayer.Backpack:FindFirstChild("Key") or (Character and Character:FindFirstChild("Key")) then
+			return true
+		end
+
+		if Character then
+			Character:PivotTo(AutoHotelKeyObtain:GetPivot())
+		end
+
+		for _, AutoHotelDesc in ipairs(AutoHotelKeyObtain:GetDescendants()) do
+			if AutoHotelDesc:IsA("ProximityPrompt") then
+				fireproximityprompt(AutoHotelDesc)
+			end
+		end
+
+		task.wait(0.12)
+	end
+	return false
+end
+
+local function AutoHotelProcessRoom(AutoHotelRoomNum)
+	if AutoHotelProcessedRooms[AutoHotelRoomNum] then
+		return
+	end
+	task.wait(AutoHotelRoomProcessTime)
+	AutoHotelProcessedRooms[AutoHotelRoomNum] = true
+end
+
+local function AutoHotelRunLibrary()
+	local AutoHotelCurrentRooms = workspace:WaitForChild("CurrentRooms")
+	local AutoHotelRoom50 = AutoHotelCurrentRooms:WaitForChild("50")
+	local AutoHotelLiveHintBooks = {}
+	local AutoHotelHintPaperObtained = false
+
+	local function AutoHotelIsInRoom50(AutoHotelObj)
+		return AutoHotelObj and AutoHotelObj:IsDescendantOf(AutoHotelRoom50)
+	end
+
+	local function AutoHotelIsActuallyInRoom50()
+		return tonumber(LocalPlayer:GetAttribute("CurrentRoom")) == 50
+	end
+
+	while Toggles.AutoHotel.Value and not AutoHotelIsActuallyInRoom50() do
+		task.wait(0.1)
+	end
+	if not Toggles.AutoHotel.Value then return end
+
+	AutoHotelWaitForEntities(5)
+
+	local function AutoHotelHasHintPaper()
+		local AutoHotelChar = LocalPlayer.Character
+		if not AutoHotelChar then return false end
+		return LocalPlayer.Backpack:FindFirstChild("LibraryHintPaper", true) or AutoHotelChar:FindFirstChild("LibraryHintPaper", true)
+	end
+
+	local function AutoHotelGetCFrame(AutoHotelObj)
+		if not AutoHotelIsActuallyInRoom50() or not AutoHotelIsInRoom50(AutoHotelObj) then return nil end
+		if AutoHotelObj:IsA("Model") then return AutoHotelObj:GetPivot() end
+		if AutoHotelObj:IsA("BasePart") then return AutoHotelObj.CFrame end
+		local AutoHotelPart = AutoHotelObj:FindFirstChildWhichIsA("BasePart", true)
+		return AutoHotelPart and AutoHotelPart.CFrame
+	end
+
+	local function AutoHotelCollectBooks()
+		for _, AutoHotelDesc in ipairs(AutoHotelRoom50:GetDescendants()) do
+			if AutoHotelDesc.Name == "LiveHintBook" and AutoHotelIsInRoom50(AutoHotelDesc) and not table.find(AutoHotelLiveHintBooks, AutoHotelDesc) then
+				table.insert(AutoHotelLiveHintBooks, AutoHotelDesc)
+			end
+		end
+	end
+
+	AutoHotelCollectBooks()
+
+	AutoHotelLibraryRoomConnection = AutoHotelRoom50.DescendantAdded:Connect(function(AutoHotelAdded)
+		if Toggles.AutoHotel.Value and AutoHotelIsActuallyInRoom50() and AutoHotelIsInRoom50(AutoHotelAdded) then
+			if AutoHotelAdded.Name == "LiveHintBook" and not table.find(AutoHotelLiveHintBooks, AutoHotelAdded) then
+				table.insert(AutoHotelLiveHintBooks, AutoHotelAdded)
+			end
+		end
+	end)
+
+	while Toggles.AutoHotel.Value and AutoHotelIsActuallyInRoom50() and #AutoHotelLiveHintBooks < 3 do
+		AutoHotelCollectBooks()
+		if #AutoHotelLiveHintBooks >= 3 then break end
+		task.wait(0.1)
+	end
+
+	while Toggles.AutoHotel.Value and AutoHotelIsActuallyInRoom50() and not AutoHotelHintPaperObtained do
+		if AutoHotelHasHintPaper() then
+			AutoHotelHintPaperObtained = true
+			break
+		end
+
+		for AutoHotelIndex = #AutoHotelLiveHintBooks, 1, -1 do
+			local AutoHotelBook = AutoHotelLiveHintBooks[AutoHotelIndex]
+			if not AutoHotelIsInRoom50(AutoHotelBook) then
+				table.remove(AutoHotelLiveHintBooks, AutoHotelIndex)
+				continue
+			end
+
+			while Toggles.AutoHotel.Value and AutoHotelIsActuallyInRoom50() and not AutoHotelHintPaperObtained and AutoHotelBook.Parent and AutoHotelIsInRoom50(AutoHotelBook) do
+				if AutoHotelHasHintPaper() then
+					AutoHotelHintPaperObtained = true
+					break
+				end
+
+				local AutoHotelChar = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+				local AutoHotelHRP = AutoHotelChar:FindFirstChild("HumanoidRootPart")
+				if not AutoHotelHRP then
+					task.wait()
+					continue
+				end
+
+				local AutoHotelCF = AutoHotelGetCFrame(AutoHotelBook)
+				if AutoHotelCF then
+					AutoHotelHRP.CFrame = AutoHotelCF
+				end
+
+				for _, AutoHotelPrompt in ipairs(AutoHotelBook:GetDescendants()) do
+					if AutoHotelPrompt:IsA("ProximityPrompt") then
+						fireproximityprompt(AutoHotelPrompt)
+					end
+				end
+				task.wait(0.08)
+			end
+			if AutoHotelHintPaperObtained then break end
+		end
+
+		if AutoHotelHasHintPaper() then
+			AutoHotelHintPaperObtained = true
+			break
+		end
+
+		local AutoHotelPaper = AutoHotelRoom50:FindFirstChild("LibraryHintPaper", true)
+		if AutoHotelPaper and AutoHotelIsInRoom50(AutoHotelPaper) then
+			while Toggles.AutoHotel.Value and AutoHotelIsActuallyInRoom50() and not AutoHotelHintPaperObtained and AutoHotelPaper.Parent do
+				if AutoHotelHasHintPaper() then
+					AutoHotelHintPaperObtained = true
+					break
+				end
+
+				local AutoHotelChar = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+				local AutoHotelHRP = AutoHotelChar:FindFirstChild("HumanoidRootPart")
+				if AutoHotelHRP then
+					local AutoHotelCF = AutoHotelGetCFrame(AutoHotelPaper)
+					if AutoHotelCF then
+						AutoHotelHRP.CFrame = AutoHotelCF * CFrame.new(0, 5, 0)
+					end
+				end
+
+				for _, AutoHotelPrompt in ipairs(AutoHotelPaper:GetDescendants()) do
+					if AutoHotelPrompt:IsA("ProximityPrompt") then
+						fireproximityprompt(AutoHotelPrompt)
+					end
+				end
+				task.wait(0.08)
+			end
+		end
+		task.wait(0.1)
+	end
+end
+
+local function AutoHotelHandleSeek()
+	local AutoHotelLastTriggerRoom = nil
+
+	while Toggles.AutoHotel.Value do
+		local AutoHotelCurrentRooms = workspace:FindFirstChild("CurrentRooms")
+		if not AutoHotelCurrentRooms then
+			task.wait(0.2)
+			continue
+		end
+
+		local TriggerRoomNum = nil
+
+		for _, Room in ipairs(AutoHotelCurrentRooms:GetChildren()) do
+			local Num = tonumber(Room.Name)
+			if Num and Num ~= AutoHotelLastTriggerRoom then
+				local Trigger = Room:FindFirstChild("TriggerEventCollision")
+					or Room:FindFirstChild("TriggerEventCollision", true)
+
+				if Trigger then
+					TriggerRoomNum = Num
+					break
+				end
+			end
+		end
+
+		if not TriggerRoomNum then
+			task.wait(0.15)
+			continue
+		end
+
+		AutoHotelLastTriggerRoom = TriggerRoomNum
+
+		AutoHotelEntityPause = true
+		AutoHotelWaitForEntities(10)
+		AutoHotelEntityPause = false
+	end
+end
+
+Toggles.AutoHotel:OnChanged(function(AutoHotelEnabled)
+	if AutoHotelConnection then
+		task.cancel(AutoHotelConnection)
+		AutoHotelConnection = nil
+	end
+	if AutoHotelLibraryConnection then
+		task.cancel(AutoHotelLibraryConnection)
+		AutoHotelLibraryConnection = nil
+	end
+	if AutoHotelLibraryRoomConnection then
+		AutoHotelLibraryRoomConnection:Disconnect()
+		AutoHotelLibraryRoomConnection = nil
+	end
+	if AutoHotelSeekConnection then
+		task.cancel(AutoHotelSeekConnection)
+		AutoHotelSeekConnection = nil
+	end
+
+	AutoHotelEntityPause = false
+	table.clear(AutoHotelProcessedRooms)
+
+	if not AutoHotelEnabled then return end
+
+	if Options.AutoHotelRoomProcess then
+		AutoHotelRoomProcessTime = Options.AutoHotelRoomProcess.Value
+		Options.AutoHotelRoomProcess:OnChanged(function(Value)
+			AutoHotelRoomProcessTime = Value
+		end)
+	end
+
+	local AutoHotelCurrentRooms = workspace:FindFirstChild("CurrentRooms")
+	if AutoHotelCurrentRooms then
+		AutoHotelCurrentRooms.ChildAdded:Connect(function(AutoHotelChild)
+			local AutoHotelNum = tonumber(AutoHotelChild.Name)
+			if AutoHotelNum then
+				AutoHotelProcessRoom(AutoHotelNum)
+			end
+		end)
+	end
+
+	AutoHotelSeekConnection = task.spawn(AutoHotelHandleSeek)
+
+	task.spawn(function()
+		while Toggles.AutoHotel.Value do
+			if AutoHotelIsEntityPresent() then
+				AutoHotelEntityPause = true
+				while AutoHotelIsEntityPresent() and Toggles.AutoHotel.Value do
+					task.wait(0.15)
+				end
+				AutoHotelEntityPause = false
+			end
+			task.wait(0.2)
+		end
+	end)
+
+	AutoHotelConnection = task.spawn(function()
+		while Toggles.AutoHotel.Value do
+			if AutoHotelEntityPause then
+				task.wait(0.1)
+				continue
+			end
+
+			local AutoHotelDoor, AutoHotelRoomNum = AutoHotelGetNextClosedDoor()
+
+			if AutoHotelDoor and AutoHotelRoomNum and Character then
+				if AutoHotelRoomNum == 50 then
+					if not AutoHotelLibraryConnection then
+						AutoHotelLibraryConnection = task.spawn(function()
+							AutoHotelRunLibrary()
+							AutoHotelLibraryConnection = nil
+						end)
+					end
+					task.wait(0.4)
+				else
+					AutoHotelProcessRoom(AutoHotelRoomNum)
+					AutoHotelHandleKey(AutoHotelRoomNum)
+					if Character and not AutoHotelEntityPause then
+						Character:PivotTo(AutoHotelDoor:GetPivot() * CFrame.new(0, -1, 0))
+					end
+				end
+			end
+			task.wait(0.15)
+		end
+	end)
+end)
+
+
+Groupboxes.Debug = Tabs.General:AddRightGroupbox("Debug")
+Groupboxes.Debug:AddButton({
+	Text = "Ladder Softlock Fix",
+	Tooltip = "Ladder Softlock Fix.",
+	Func = function()
+   		LocalPlayer:SetAttribute("Climbing", false)
+	end
+})
+Groupboxes.Debug:AddButton({
+	Text = "Get Current Floor",
+	Tooltip = "Prints the current floor to the console.",
+	Func = function()
+		print("Current Floor:", GameData:WaitForChild("Floor").Value)
+	end
+})
+Groupboxes.Debug:AddButton({
+	Text = "Get Current Room",
+	Tooltip = "Prints the current room number to the console.",
+	Func = function()
+		print("Current Room:", LocalPlayer:GetAttribute("CurrentRoom"))
+	end
+})
+Groupboxes.Debug:AddButton({
+	Text = "Void",
+	Tooltip = "Teleports your character to Y -120.",
+	Func = function()
+		if not Character then return end
+		local Pivot = Character:GetPivot()
+		-- Too lazy to loop this
+		Character:PivotTo(Pivot + Vector3.new(0, -120 - Pivot.Position.Y, 0))
+		Character:PivotTo(Pivot + Vector3.new(0, -120 - Pivot.Position.Y, 0))
+		Character:PivotTo(Pivot + Vector3.new(0, -120 - Pivot.Position.Y, 0))
+		Character:PivotTo(Pivot + Vector3.new(0, -120 - Pivot.Position.Y, 0))
+		Character:PivotTo(Pivot + Vector3.new(0, -120 - Pivot.Position.Y, 0))
+		Character:PivotTo(Pivot + Vector3.new(0, -120 - Pivot.Position.Y, 0))
+		Character:PivotTo(Pivot + Vector3.new(0, -120 - Pivot.Position.Y, 0))
+		Character:PivotTo(Pivot + Vector3.new(0, -120 - Pivot.Position.Y, 0))
+		Character:PivotTo(Pivot + Vector3.new(0, -120 - Pivot.Position.Y, 0))
+		Character:PivotTo(Pivot + Vector3.new(0, -120 - Pivot.Position.Y, 0))
+		Character:PivotTo(Pivot + Vector3.new(0, -120 - Pivot.Position.Y, 0))
+		Character:PivotTo(Pivot + Vector3.new(0, -120 - Pivot.Position.Y, 0))
+		Character:PivotTo(Pivot + Vector3.new(0, -120 - Pivot.Position.Y, 0))
+		Character:PivotTo(Pivot + Vector3.new(0, -120 - Pivot.Position.Y, 0))
+		Character:PivotTo(Pivot + Vector3.new(0, -120 - Pivot.Position.Y, 0))
+		Character:PivotTo(Pivot + Vector3.new(0, -120 - Pivot.Position.Y, 0))
+		Character:PivotTo(Pivot + Vector3.new(0, -120 - Pivot.Position.Y, 0))
+		Character:PivotTo(Pivot + Vector3.new(0, -120 - Pivot.Position.Y, 0))
+		Character:PivotTo(Pivot + Vector3.new(0, -120 - Pivot.Position.Y, 0))
+		Character:PivotTo(Pivot + Vector3.new(0, -120 - Pivot.Position.Y, 0))
+		Character:PivotTo(Pivot + Vector3.new(0, -120 - Pivot.Position.Y, 0))
+		Character:PivotTo(Pivot + Vector3.new(0, -120 - Pivot.Position.Y, 0))
+	end
+})
+Groupboxes.Debug:AddButton({
+	Text = "Death",
+	Tooltip = "Death",
+	Func = function()
+		Globals.Deathing = true
+		LocalPlayer.Character.Humanoid.Health = 0
+	end
+})
+Groupboxes.Debug:AddButton({
+	Text = "Exit Closet",
+	Tooltip = "Exits the current closet.",
+	Func = function()
+		if RemotesFolder and RemotesFolder:FindFirstChild("CamLock") then
+			RemotesFolder.CamLock:FireServer()
+		end
+	end
+})
+local TpNextDoorConnection
+
+local function getNextClosedDoor()
+	if not Character then return nil end
+
+	local GameData = game:GetService("ReplicatedStorage"):FindFirstChild("GameData")
+	if not GameData then return nil end
+
+	local LatestRoom = GameData:FindFirstChild("LatestRoom")
+	if not LatestRoom then return nil end
+
+	local startRoom = LatestRoom.Value
+	local bestDoor = nil
+	local bestNumber = math.huge
+
+	for _, obj in ipairs(workspace:GetDescendants()) do
+		if obj.Name == "Door" and obj:IsA("Model") then
+			local openAttr = obj:GetAttribute("Open")
+			if openAttr == false or openAttr == nil then
+				local roomModel = obj.Parent
+				local roomNum = tonumber(roomModel and roomModel.Name)
+
+				if roomNum and roomNum >= startRoom and roomNum < bestNumber then
+					bestNumber = roomNum
+					bestDoor = obj
+				end
+			end
+		end
+	end
+
+	return bestDoor
+end
+
+Groupboxes.Debug:AddButton({
+	Text = "Tp Next Door",
+	Tooltip = "Teleports you to the next sequential unopened door.",
+	Func = function()
+		local door = getNextClosedDoor()
+		if door then
+			Character:PivotTo(door:GetPivot() * CFrame.new(0, -1, 0))
+		end
+	end
+})
+
+Toggles.TpNextDoor = Groupboxes.Debug:AddToggle("TpNextDoor", {
+	Text = "Auto Tp Next Door",
+	Tooltip = "Continuously teleports you to the next sequential unopened door.",
+	Default = false
+})
+
+Toggles.TpNextDoor:OnChanged(function(TpNextDoorEnabled)
+	if TpNextDoorConnection then
+		task.cancel(TpNextDoorConnection)
+		TpNextDoorConnection = nil
+	end
+
+	if not TpNextDoorEnabled then
+		return
+	end
+
+	TpNextDoorConnection = task.spawn(function()
+		while Toggles.TpNextDoor.Value do
+			local door = getNextClosedDoor()
+			if door and Character then
+				Character:PivotTo(door:GetPivot() * CFrame.new(0, -1, 0))
+			end
+			task.wait(0.15)
+		end
+		TpNextDoorConnection = nil
+	end)
+end)
+
+
+Groupboxes.Exploits_Bypass = Tabs.Exploits:AddLeftGroupbox("Bypass / Solve")
+
 Groupboxes.Exploits_Bypass:AddToggle("BypassGiggle",         { Text = "Bypass Giggle",           Default = false, Tooltip = "Prevents 'Giggle' from attacking you." })
 Groupboxes.Exploits_Bypass:AddToggle("BypassDupe",           { Text = "Bypass Dupe",             Default = false, Tooltip = "Prevents you from open 'Dupe' fake doors." })
 Groupboxes.Exploits_Bypass:AddToggle("BypassEyes",           { Text = "Bypass Eyes",             Default = false, Tooltip = "Prevents 'Eyes' from hurting you." })
@@ -1888,171 +2768,45 @@ Groupboxes.Exploits_Bypass:AddToggle("BypassKillbricks",     { Text = "Bypass Ki
 Groupboxes.Exploits_Bypass:AddToggle("BypassSeekingWall",    { Text = "Bypass Seeking Wall",     Default = false, Tooltip = "Prevents 'ScaryWall' from hurting you." })
 Groupboxes.Exploits_Bypass:AddToggle("BypassSnare",          { Text = "Bypass Snare",            Default = false, Tooltip = "Prevents 'Snare' from trapping you." })
 Groupboxes.Exploits_Bypass:AddToggle("BypassBanana",         { Text = "Bypass Banana",           Default = false, Tooltip = "Prevents 'Banana Peel' from slipping you up (sometimes doesn't work)." })
-Groupboxes.Exploits_Bypass:AddToggle("BypassJeff",          { Text = "Bypass Jeff",             Default = false, Tooltip = "Prevents 'Jeff the Killer' from stabbing you (sometimes doesn't work)." })
-Groupboxes.Exploits_Bypass:AddToggle("BypassCreak",         { Text = "Bypass Creak",            Default = false, Tooltip = "Disables touch on Creak's parts and reuses the Eyes view spoof while Creak is active. Camera is not moved." })
-Groupboxes.Exploits_Bypass:AddToggle("BypassDrone",         { Text = "Bypass Drone",            Default = false, Tooltip = "Deletes the 'WalkedInto' remote inside 'Drones' models so touching them doesn't knock you down (stays deleted until rejoin)." })
+Groupboxes.Exploits_Bypass:AddToggle("BypassJeff",           { Text = "Bypass Jeff",             Default = false, Tooltip = "Prevents 'Jeff the Killer' from stabbing you (sometimes doesn't work)." })
 
-local CreakModels = setmetatable({}, { __mode = "k" })
-local CreakTouchState = setmetatable({}, { __mode = "k" })
 
-local function IsCreakModel(Object)
-	if typeof(Object) ~= "Instance" or not Object:IsA("Model") then return false end
-	local Name = string.lower(Object.Name or "")
-	return Name == "creak" or Name == "creek"
-end
-
-local function SetCreakTouch(Model, Disabled)
-	if typeof(Model) ~= "Instance" then return end
-	for _, Part in ipairs(Model:GetDescendants()) do
-		if Part:IsA("BasePart") then
-			if CreakTouchState[Part] == nil then
-				CreakTouchState[Part] = Part.CanTouch
-			end
-			if Disabled then
-				Part.CanTouch = false
-			else
-				Part.CanTouch = CreakTouchState[Part]
-			end
-		end
-	end
-end
-
-local function TrackCreakModel(Object)
-	if not IsCreakModel(Object) then return end
-	CreakModels[Object] = true
-	if ToggleOn("BypassCreak") then
-		SetCreakTouch(Object, true)
-	end
-end
-
-local function RestoreCreakModels()
-	local Dead = {}
-	for Model in pairs(CreakModels) do
-		SetCreakTouch(Model, false)
-		Dead[#Dead + 1] = Model
-	end
-	for _, Model in ipairs(Dead) do
-		CreakModels[Model] = nil
-	end
-end
-
-local function DisconnectStoredConnection(Key)
-	local Connection = Connections[Key]
-	if Connection then
-		pcall(function() Connection:Disconnect() end)
-		Connections[Key] = nil
-	end
-end
-
-local function FindCreakModels()
-	local Found = {}
-	local function Add(Object)
-		if IsCreakModel(Object) then
-			Found[#Found + 1] = Object
-		end
-	end
-
-	for _, Name in ipairs({ "Creak", "Creek" }) do
-		Add(Services.Workspace:FindFirstChild(Name))
-	end
-
-	local LiveFolder = Services.Workspace:FindFirstChild("LiveEntities")
-	if LiveFolder then
-		for _, Name in ipairs({ "Creak", "Creek" }) do
-			Add(LiveFolder:FindFirstChild(Name, true))
-		end
-	end
-	return Found
-end
-
-local function FireCreakLookSpoof()
-	if Floor == "Fools" or Floor == "OldHotel" then
-		Functions.FireMotor(0, (Globals.SpoofOffset == 200 and 65 or -65), 0, false)
-	else
-		Functions.FireMotor(-650)
-	end
-end
-
-local function IsCreakActive()
-	for Model in pairs(CreakModels) do
-		if Model.Parent then return true end
-	end
-	return Services.Workspace:FindFirstChild("Creak") ~= nil
-		or Services.Workspace:FindFirstChild("Creek") ~= nil
-end
-
-local function ShouldSpoofCreakLook()
-	return ToggleOn("BypassCreak") and IsCreakActive()
-end
-
-local function SetCreakConnections(Enabled)
-	DisconnectStoredConnection("CreakBypassLoop")
-	DisconnectStoredConnection("CreakWatcher")
-	if not Enabled then return end
-
-	local CreakAcc = 0
-	Connections.CreakBypassLoop = Services.RunService.Heartbeat:Connect(function(Delta)
-		if not ToggleOn("BypassCreak") then return end
-		CreakAcc += Delta
-		if CreakAcc < 0.25 then return end
-		CreakAcc = 0
-		local Dead = {}
-		for Model in pairs(CreakModels) do
-			if Model.Parent then
-				SetCreakTouch(Model, true)
-			else
-				Dead[#Dead + 1] = Model
-			end
-		end
-		for _, Model in ipairs(Dead) do
-			CreakModels[Model] = nil
-		end
-	end)
-	Connections.CreakWatcher = Services.Workspace.DescendantAdded:Connect(function(Descendant)
-		if ToggleOn("BypassCreak") then
-			TrackCreakModel(Descendant)
-		end
-	end)
-end
-
-OnChange("BypassGiggle", function(Value)
+Toggles.BypassGiggle:OnChanged(function(Value)
 	for _, Object in Objects.Entities do
 		if Object.Name == "GiggleCeiling" then
-			local Hitbox = Object:WaitForChild("Hitbox", 5)
-			if Hitbox then Hitbox.CanTouch = not Value end
+			Object:WaitForChild("Hitbox").CanTouch = not Value
 		end
 	end
 end)
-OnChange("BypassDupe", function(Value)
+Toggles.BypassDupe:OnChanged(function(Value)
 	for _, Object in Objects.Entities do
 		if Object.Name == "DoorFake" or Object.Name == "FakeDoor" then
-			local Hidden = Object:WaitForChild("Hidden", 5)
-			if Hidden then Hidden.CanTouch = not Value end
+			Object:WaitForChild("Hidden").CanTouch = not Value
 			if Object:FindFirstChild("Lock") then
 				Object.Lock.UnlockPrompt.Enabled = not Value
 			end
 		end
 	end
 end)
-OnChange("BypassEyes", function(Value)
+Toggles.BypassEyes:OnChanged(function(Value)
 	if Value and Globals.IsEyes then
 		if Floor == "Fools" or Floor == "OldHotel" then
-			Functions.FireMotor(0, (Globals.SpoofOffset == 200 and 65 or -65), 0, false)
+			RemotesFolder.MotorReplication:FireServer(0, (Globals.SpoofOffset == 200 and 65 or -65), 0, false)
 		else
-			Functions.FireMotor(-650)
+			RemotesFolder.MotorReplication:FireServer(-650)
 		end
 	end
 end)
-OnChange("BypassLookman", function(Value)
+Toggles.BypassLookman:OnChanged(function(Value)
 	if Value and Globals.IsLookman then
 		if Floor == "Fools" or Floor == "OldHotel" then
-			Functions.FireMotor(0, (Globals.SpoofOffset == 200 and 65 or -65), 0, false)
+			RemotesFolder.MotorReplication:FireServer(0, (Globals.SpoofOffset == 200 and 65 or -65), 0, false)
 		else
-			Functions.FireMotor(-650)
+			RemotesFolder.MotorReplication:FireServer(-650)
 		end
 	end
 end)
-OnChange("BypassGloombatEggs", function(Value)
+Toggles.BypassGloombatEggs:OnChanged(function(Value)
 	for _, Object in Objects.Entities do
 		for _, Part in Object:GetDescendants() do
 			if Part:IsA("BasePart") then
@@ -2061,7 +2815,7 @@ OnChange("BypassGloombatEggs", function(Value)
 		end
 	end
 end)
-OnChange("BypassSeekObstructions", function(Value)
+Toggles.BypassSeekObstructions:OnChanged(function(Value)
 	for _, Object in Objects.SeekObstructions do
 		Object.CanTouch = not Value
 		if Object.Name == "SeekFloodline" then
@@ -2073,23 +2827,20 @@ OnChange("BypassSeekObstructions", function(Value)
 		Object.Transparency = Value and 0 or 1
 	end
 end)
-OnChange("BypassVacuum", function(Value)
+Toggles.BypassVacuum:OnChanged(function(Value)
 	for _, Object in Objects.Entities do
 		if Object.Name == "SideroomSpace" then
-			local Collision = Object:WaitForChild("Collision", 5)
-			if Collision then
-				Collision.CanCollide = Value
-				Collision.CanTouch = not Value
-			end
+			Object:WaitForChild("Collision").CanCollide = Value
+			Object:WaitForChild("Collision").CanTouch = not Value
 		end
 	end
 end)
-OnChange("BypassKillbricks", function(Value)
+Toggles.BypassKillbricks:OnChanged(function(Value)
 	for _, Object in Objects.Obstructions do
 		if Object.Name == "Lava" then Object.CanTouch = not Value end
 	end
 end)
-OnChange("BypassSeekingWall", function(Value)
+Toggles.BypassSeekingWall:OnChanged(function(Value)
 	for _, Object in Objects.Obstructions do
 		if Object.Name == "ScaryWall" then
 			for _, Part in Object:GetDescendants() do
@@ -2101,7 +2852,7 @@ OnChange("BypassSeekingWall", function(Value)
 		end
 	end
 end)
-OnChange("BypassSnare", function(Value)
+Toggles.BypassSnare:OnChanged(function(Value)
 	for _, Object in Objects.Entities do
 		if Object.Name == "Snare" then
 			for _, Part in Object:GetDescendants() do
@@ -2110,12 +2861,12 @@ OnChange("BypassSnare", function(Value)
 		end
 	end
 end)
-OnChange("BypassBanana", function(Value)
+Toggles.BypassBanana:OnChanged(function(Value)
 	for _, Object in Objects.Entities do
 		if Object.Name == "BananaPeel" then Object.CanTouch = not Value end
 	end
 end)
-OnChange("BypassJeff", function(Value)
+Toggles.BypassJeff:OnChanged(function(Value)
 	for _, Object in Objects.Entities do
 		if Object.Name == "JeffTheKiller" then
 			for _, Part in Object:GetDescendants() do
@@ -2124,303 +2875,350 @@ OnChange("BypassJeff", function(Value)
 					Part.CanTouch = not Value
 				end
 			end
-			local Humanoid = Object:WaitForChild("Humanoid", 5)
-			if Humanoid then Humanoid.Health = 0 end
+			Object:WaitForChild("Humanoid").Health = 0
 		end
 	end
-end)
-OnChange("BypassCreak", function(Value)
-	if Value then
-		local Found = false
-		for _, Object in ipairs(Objects.Entities) do
-			if IsCreakModel(Object) then
-				TrackCreakModel(Object)
-				Found = true
-			end
-		end
-		for _, Model in ipairs(FindCreakModels()) do
-			TrackCreakModel(Model)
-			Found = true
-		end
-		SetCreakConnections(true)
-		if ShouldSpoofCreakLook() then
-			FireCreakLookSpoof()
-		end
-		if not Found then
-			Functions.Notify({ Title = "Creak bulunamadi; ciktiginda uygulanacak." })
-		end
-	else
-		SetCreakConnections(false)
-		RestoreCreakModels()
-	end
-end)
-Functions.RemoveDroneWalkedInto = function(Model)
-	pcall(function()
-		if not Model or Model.Name ~= "Drones" then return end
-		for _, Desc in Model:GetDescendants() do
-			if Desc.Name == "WalkedInto" and (Desc:IsA("RemoteEvent") or Desc:IsA("RemoteFunction")) then
-				Desc:Destroy()
-			end
-		end
-	end)
-end
-OnChange("BypassDrone", function(Value)
-	if not Value then return end
-	pcall(function()
-		for _, Obj in Services.Workspace:GetDescendants() do
-			if Obj.Name == "Drones" and (Obj:IsA("Model") or Obj:IsA("Folder")) then
-				Functions.RemoveDroneWalkedInto(Obj)
-			end
-		end
-	end)
 end)
 
--- Archives: saat / entity bastirma / cozumler
-local function BringDroppedItems(Silent)
-	local Drops = Services.Workspace:FindFirstChild("Drops")
-	local HRP = Character and Character:FindFirstChild("HumanoidRootPart")
-	if not Drops or not HRP then
-		if not Silent then
-			Functions.Notify({ Title = "Drops/Character yok." })
-		end
-		return false
-	end
-	for _, Item in ipairs(Drops:GetChildren()) do
-		if Item:IsA("Model") then
-			Item:PivotTo(HRP.CFrame)
-		elseif Item:IsA("BasePart") then
-			Item.CFrame = HRP.CFrame
-		end
-	end
-	return true
+
+
+
+
+
+
+-- Archives
+
+Groupboxes.Archives_Misc = Tabs.Archives:AddRightGroupbox("Exploits / Anti")
+Groupboxes.Archives_Misc:AddToggle("AntiRansom", { Text = "Anti Ransom", Default = false, Tooltip = "Prevents 'Ransom' from attacking you." })
+Groupboxes.Archives_Misc:AddToggle("AntiClosetTrash", { Text = "Anti Closet Trash", Default = false, Tooltip = "Prevents 'Closet Trash' from spawning." })
+Groupboxes.Archives_Misc:AddToggle("ForgetMeNotSolver", { Text = "Forget Me Not Skipper", Default = false, Tooltip = "Automatically Skippes Forget Me Not doors." })
+Groupboxes.Archives_Misc:AddToggle("TimeShower", { Text = "Time Shower", Default = false, Tooltip = "Shows the Archives clock time." })
+Groupboxes.Archives_Misc:AddToggle("BypassDronesStampede", { Text = "Stop Time/Anti Stampede", Default = false, Tooltip = "Prevents 'The Drones Stampede' from attacking you." })
+Groupboxes.Archives_Misc:AddToggle("HonchoCorrectBoxESP", { Text = "Correct Box ESP/Auto Interact", Default = false, Tooltip = "ESP correct Archives boxes in the Honcho sequence and automatically interact with the correct deposit." })
+
+TimeShowerLabel = Instance.new("TextLabel")
+TimeShowerLabel.Name = "TimeShower"
+TimeShowerLabel.AnchorPoint = Vector2.new(0, 1)
+TimeShowerLabel.Position = UDim2.new(0, 12, 1, -12)
+TimeShowerLabel.Size = UDim2.new(0, 180, 0, 32)
+TimeShowerLabel.BackgroundTransparency = 1
+TimeShowerLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TimeShowerLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+TimeShowerLabel.TextStrokeTransparency = 0.35
+TimeShowerLabel.Font = Enum.Font.GothamBold
+TimeShowerLabel.TextSize = 18
+TimeShowerLabel.TextXAlignment = Enum.TextXAlignment.Left
+TimeShowerLabel.Text = "Time: --:--"
+TimeShowerLabel.Visible = false
+TimeShowerLabel.Parent = Container
+
+
+
+local function GetArchivesClockLabel(Room)
+	local Assets = Room and Room:FindFirstChild("Assets", true)
+	local Clock = Assets and Assets:FindFirstChild("ArchivesClock", true)
+	local Time = Clock and Clock:FindFirstChild("Time", true)
+	local TextLabel = Time and Time:FindFirstChild("TextLabel")
+	return (TextLabel and TextLabel:IsA("TextLabel")) and TextLabel or nil
 end
 
-Groupboxes.Archives_Misc = Tabs.Exploits:AddLeftGroupbox("Archives")
-Groupboxes.Archives_Misc:AddToggle("BypassDronesStampede", { Text = "Stop Time / Anti Stampede", Default = false, Tooltip = "Saat remote'unu spam'leyerek stampede'i durdurur." })
-Groupboxes.Archives_Misc:AddToggle("AntiRansom", { Text = "Anti Ransom", Default = false, Tooltip = "Ransom spawn olmaz." })
-Groupboxes.Archives_Misc:AddToggle("AntiClosetTrash", { Text = "Anti Closet Trash", Default = false, Tooltip = "Binder/Shoe/Shelf cisimleri spawn olmaz." })
-Groupboxes.Archives_Misc:AddToggle("BypassAlma", { Text = "Bypass Alma", Default = false, Tooltip = "Alma spawn olmaz." })
-Groupboxes.Archives_Misc:AddToggle("AntiScribbles", { Text = "Bypass Scribbles", Default = false, Tooltip = "Scribbles'in uyari objesini siler." })
-Groupboxes.Archives_Misc:AddToggle("BypassWater", { Text = "Bypass Electric Water", Default = false, Tooltip = "Elektrikli suyun hasarini onler." })
-Groupboxes.Archives_Misc:AddToggle("ForgetMeNotSolver", { Text = "Forget Me Not Skipper", Default = false, Tooltip = "Forget Me Not odalarini otomatik gecer." })
-Groupboxes.Archives_Misc:AddToggle("TpNextDoorToggle", { Text = "Auto Tp Next Door", Default = false, Tooltip = "Sirasiyla acik olmayan kapiya isinlanir." })
-Groupboxes.Archives_Misc:AddButton({
-	Text = "Tp Next Door",
-	Tooltip = "Sonraki acik olmayan kapiya isinlanir.",
-	Func = function()
-		local Door = Functions.GetNextClosedDoor()
-		if Door and Character then
-			Character:PivotTo(Door:GetPivot())
+local function ResolveClockLabel()
+	if TimeShowerSourceLabel and TimeShowerSourceLabel.Parent and TimeShowerSourceLabel:IsDescendantOf(game) then
+		return TimeShowerSourceLabel
+	end
+	local currentRooms = workspace:FindFirstChild("CurrentRooms")
+	if not currentRooms then return nil end
+	local rooms = {}
+	for _, room in ipairs(currentRooms:GetChildren()) do
+		local num = tonumber(room.Name)
+		if num then
+			rooms[#rooms + 1] = { room = room, num = num }
 		end
 	end
-})
-Groupboxes.Archives_Misc:AddButton({
-	Text = "Bring Dropped Items",
-	Tooltip = "Yerdeki butun esyalari yanina toplar.",
-	DoubleClick = false,
-	Func = function()
-		BringDroppedItems(false)
-	end,
-})
-Groupboxes.Archives_Misc:AddToggle("AutoBringDroppedItems", {
-	Text = "Auto Bring Dropped Items", Default = false,
-	Tooltip = "Dusen esyalari otomatik yanina toplar.",
-})
-Groupboxes.Archives_Misc:AddSlider("AutoBringDroppedInterval", {
-	Text = "Bring Araligi (sn)", Min = 0, Max = 10, Default = 1, Rounding = 1, Compact = true,
-})
-
-local BringAcc = 0
-table.insert(Connections, Services.RunService.Heartbeat:Connect(function(Delta)
-	if not ToggleOn("AutoBringDroppedItems") then
-		BringAcc = 0
-		return
-	end
-	local Interval = (Options.AutoBringDroppedInterval and Options.AutoBringDroppedInterval.Value) or 1
-	BringAcc = BringAcc + Delta
-	if Interval > 0 and BringAcc < Interval then return end
-	BringAcc = 0
-	BringDroppedItems(true)
-end))
-
-local DroneWalkedIntoParents, DroneMovedConn = {}, nil
-local WaterParts, WaterConn = {}, nil
-local ForgetRunning, ForgetProcessing, ForgetNotified = false, {}, {}
-local TpNextDoorThread = nil
-
--- Mevcut ArchivesClock okuyucumuzu kullan (Functions.ScanStampedeClockSources)
-local function ResolveClockRemote()
-	local State = Globals.DroneStampedeState
-	if not State then return nil end
-	if not State.CachedArchivesClocks or #State.CachedArchivesClocks == 0 then
-		pcall(function() Functions.ScanStampedeClockSources() end)
-	end
-	for _, Clock in ipairs(State.CachedArchivesClocks or {}) do
-		if Clock and Clock:IsDescendantOf(game) then
-			local Remote = Clock:FindFirstChild("LookedAtRemote", true)
-			if Remote and Remote:IsA("RemoteEvent") then return Remote end
+	table.sort(rooms, function(a, b) return a.num > b.num end)
+	for i = 1, math.min(6, #rooms) do
+		local label = GetArchivesClockLabel(rooms[i].room)
+		if label then
+			TimeShowerSourceLabel = label
+			return label
 		end
 	end
 	return nil
 end
 
-OnChange("BypassDronesStampede", function(Value)
-	if not Value then return end
-	task.spawn(function()
-		while ToggleOn("BypassDronesStampede") do
-			local Remote = ResolveClockRemote()
-			if Remote then pcall(function() Remote:FireServer() end) end
-			task.wait(1)
-		end
-	end)
-end)
+local function ResolveClockRemote()
+	local label = ResolveClockLabel()
+	if not label then return nil end
+	local clock = label:FindFirstAncestor("ArchivesClock")
+	if not clock then return nil end
+	local remote = clock:FindFirstChild("LookedAtRemote", true)
+	return (remote and remote:IsA("RemoteEvent")) and remote or nil
+end
 
-OnChange("AntiRansom", function(Value)
-	if not Value then return end
-	local Conn = Services.Workspace.ChildAdded:Connect(function(Child)
-		if ToggleOn("AntiRansom") and Child.Name == "Ransom" then
-			pcall(function() Child:Destroy() end)
-		end
-	end)
-	table.insert(Connections, Conn)
-end)
-
-OnChange("AntiClosetTrash", function(Value)
-	if not Value then return end
-	local Conn = Services.Workspace.ChildAdded:Connect(function(Child)
-		if not ToggleOn("AntiClosetTrash") then return end
-		local N = Child.Name
-		if N:sub(1, 6) == "Binder" or N:sub(1, 4) == "Shoe" or N:sub(1, 5) == "Shelf" then
-			pcall(function() Child:Destroy() end)
-		end
-	end)
-	table.insert(Connections, Conn)
-end)
-
-OnChange("BypassAlma", function(Value)
-	if Value then
-		for _, Child in ipairs(Services.Workspace:GetChildren()) do
-			if Child.Name == "Alma" then pcall(function() Child:Destroy() end) end
-		end
-		local Conn = Services.Workspace.ChildAdded:Connect(function(Child)
-			if ToggleOn("BypassAlma") and Child.Name == "Alma" then
-				pcall(function() Child:Destroy() end)
+task.spawn(function()
+	local lastCheckedRoomCount = 0
+	while game:IsLoaded() do
+		local currentRooms = workspace:FindFirstChild("CurrentRooms")
+		if currentRooms then
+			local roomCount = 0
+			for _, child in ipairs(currentRooms:GetChildren()) do
+				if tonumber(child.Name) then
+					roomCount += 1
+				end
 			end
-		end)
-		table.insert(Connections, Conn)
+			if roomCount > 0 and (lastCheckedRoomCount == 0 or roomCount - lastCheckedRoomCount >= 10) then
+				ResolveClockLabel()
+				lastCheckedRoomCount = roomCount
+			end
+		end
+		task.wait(0.5)
 	end
 end)
 
-OnChange("AntiScribbles", function(Value)
+local function StopTimeShower()
+	TimeShowerToken += 1
+	if TimeShowerConnection then
+		TimeShowerConnection:Disconnect()
+		TimeShowerConnection = nil
+	end
+	if TimeShowerLabel then
+		TimeShowerLabel.Visible = false
+		TimeShowerLabel.Text = "Time: --:--"
+	end
+end
+
+Toggles.TimeShower:OnChanged(function(Value)
+	StopTimeShower()
 	if not Value then return end
-	local Conn = Services.Workspace.ChildAdded:Connect(function(Child)
-		if ToggleOn("AntiScribbles") and Child.Name == "Scribbles" then
-			local Warn = Child:FindFirstChild("IfYoureExploitingDeleteThis")
-			if Warn then pcall(function() Warn:Destroy() end) end
-		end
+	local Token = TimeShowerToken
+	TimeShowerLabel.Visible = true
+	TimeShowerConnection = Services.RunService.Heartbeat:Connect(function()
+		if Token ~= TimeShowerToken then return end
+		local TextLabel = ResolveClockLabel()
+		TimeShowerLabel.Text = TextLabel and ("Time: " .. TextLabel.Text) or "Time: --:--"
 	end)
-	table.insert(Connections, Conn)
 end)
 
-OnChange("BypassWater", function(Value)
-	if Value then
-		Functions.Notify({ Title = "PositionSpoof bunu bozar." })
-		local function ProcessRoom(Room)
-			if not tonumber(Room.Name) then return end
-			task.wait(3)
-			local Water = Room:FindFirstChild("Water")
-			if not Water or WaterParts[Water] then return end
-			local Part = Instance.new("Part")
-			Part.Name = "AbysallWaterBypass"
-			Part.Anchored = true
-			Part.CanCollide = true
-			Part.CanTouch = false
-			Part.CanQuery = false
-			Part.Transparency = 0.25
-			Part.Color = Color3.fromRGB(0, 150, 255)
-			Part.Material = Enum.Material.ForceField
-			if Water:IsA("BasePart") then
-				Part.Size = Water.Size + Vector3.new(0, 0.5, 0)
-				Part.CFrame = Water.CFrame * CFrame.new(0, 0.25, 0)
-			elseif Water:IsA("Model") then
-				local CF, Size = Water:GetBoundingBox()
-				Part.Size = Size + Vector3.new(0, 0.5, 0)
-				Part.CFrame = CF * CFrame.new(0, 0.25, 0)
+Toggles.BypassDronesStampede:OnChanged(function(enabled)
+	if BypassDronesStampedeConnection then
+		task.cancel(BypassDronesStampedeConnection)
+		BypassDronesStampedeConnection = nil
+	end
+	if not enabled then return end
+	BypassDronesStampedeConnection = task.spawn(function()
+		while Toggles.BypassDronesStampede.Value do
+			local remote = ResolveClockRemote()
+			if remote then
+				remote:FireServer()
+				task.wait(0.5)
 			else
-				Part.Size = Vector3.new(10, 1.5, 10)
-				Part.CFrame = Water:GetPivot() * CFrame.new(0, 0.25, 0)
+				task.wait(0.25)
 			end
-			if Part.Size.Y > 3 then
-				Part:Destroy()
-				Functions.Notify({ Title = "Water Bypass kaldirildi: softlock." })
-				return
-			end
-			Part.Parent = Room
-			WaterParts[Water] = Part
 		end
-		local Latest = tonumber(LatestRoom.Value) or 0
-		for N = math.max(0, Latest - 4), Latest do
-			local Room = CurrentRooms and CurrentRooms:FindFirstChild(tostring(N))
-			if Room then task.spawn(ProcessRoom, Room) end
-		end
-		WaterConn = CurrentRooms.ChildAdded:Connect(function(Room)
-			task.spawn(ProcessRoom, Room)
-		end)
-	else
-		if WaterConn then pcall(function() WaterConn:Disconnect() end) WaterConn = nil end
-		for _, P in pairs(WaterParts) do
-			if P then pcall(function() P:Destroy() end) end
-		end
-		WaterParts = {}
-	end
+	end)
 end)
 
-Functions.GetNextClosedDoor = function()
-	if not Character then return nil end
-	local Start = tonumber(LatestRoom.Value) or 0
-	local Best, BestNum = nil, math.huge
-	for _, Obj in ipairs(Services.Workspace:GetDescendants()) do
-		if Obj.Name == "Door" and Obj:IsA("Model") then
-			local Open = Obj:GetAttribute("Open")
-			if Open == false or Open == nil then
-				local N = tonumber(Obj.Parent and Obj.Parent.Name)
-				if N and N >= Start and N < BestNum then
-					BestNum = N
-					Best = Obj
+local function ClearHonchoESP()
+	if HonchoCorrectBoxConnection then
+		HonchoCorrectBoxConnection:Disconnect()
+		HonchoCorrectBoxConnection = nil
+	end
+	if HonchoAutoDepositConnection then
+		HonchoAutoDepositConnection:Disconnect()
+		HonchoAutoDepositConnection = nil
+	end
+	for _, Object in pairs(HonchoESPObjects) do
+		if Object and Object.Parent then
+			Functions.RemoveESP(Object)
+		end
+	end
+	table.clear(HonchoESPObjects)
+	table.clear(HonchoProcessedRooms)
+	table.clear(HonchoDepositCache)
+end
+
+Toggles.HonchoCorrectBoxESP:OnChanged(function(Value)
+	ClearHonchoESP()
+	if not Value then return end
+	local CurrentRooms = workspace:FindFirstChild("CurrentRooms")
+	if not CurrentRooms then return end
+
+	local function GetESPColor()
+		return (Options.ObjectiveESPColor and Options.ObjectiveESPColor.Value) or Color3.fromRGB(0, 255, 0)
+	end
+
+	local function AddHonchoESP(Object, Text)
+		Functions.AddESP({ Object = Object, Text = Text, Color = GetESPColor() }, true)
+		HonchoESPObjects[#HonchoESPObjects + 1] = Object
+		Object.Destroying:Once(function()
+			Functions.RemoveESP(Object)
+			local pos = table.find(HonchoESPObjects, Object)
+			if pos then table.remove(HonchoESPObjects, pos) end
+		end)
+	end
+
+	local function ProcessHonchoRoom(Room)
+		if not tonumber(Room.Name) or not Room.Parent or HonchoProcessedRooms[Room] then return end
+		HonchoProcessedRooms[Room] = true
+		task.wait(3)
+		if not Toggles.HonchoCorrectBoxESP.Value or not Room.Parent then
+			HonchoProcessedRooms[Room] = nil
+			return
+		end
+		local HonchoRoom = Room:FindFirstChild("ArchivesHonchoRoom", true)
+		if not HonchoRoom then
+			HonchoProcessedRooms[Room] = nil
+			return
+		end
+		local BoxIDs = {}
+		local RoomNumber = tonumber(Room.Name)
+		for _, Desc in ipairs(Room:GetDescendants()) do
+			local name = Desc.Name
+			if name == "ArchivesPackageDeposit" or name:match("^ArchivesPackageDeposit") then
+				local id = Desc:GetAttribute("BoxID")
+				if id ~= nil then
+					local idStr = tostring(id)
+					BoxIDs[idStr] = true
+					HonchoDepositCache[idStr] = Desc
+					AddHonchoESP(Desc, "Deposit (" .. idStr .. ")")
+					Desc.Destroying:Once(function()
+						if HonchoDepositCache[idStr] == Desc then
+							HonchoDepositCache[idStr] = nil
+						end
+					end)
+				end
+			end
+		end
+		if not next(BoxIDs) then
+			HonchoProcessedRooms[Room] = nil
+			return
+		end
+		for _, Child in ipairs(HonchoRoom:GetDescendants()) do
+			if Child.Name == "ArchivesStorageBox" then
+				local ToolBoxID = Child:GetAttribute("Tool_BoxID")
+				if ToolBoxID ~= nil and BoxIDs[tostring(ToolBoxID)] then
+					if not Child:GetAttribute("ParentRoom") then
+						Child:SetAttribute("ParentRoom", RoomNumber)
+					end
+					Child.Name = "ArchivesStorageBoxCorrect"
+					AddHonchoESP(Child, "Correct Box (" .. tostring(ToolBoxID) .. ")")
 				end
 			end
 		end
 	end
-	return Best
-end
 
-OnChange("TpNextDoorToggle", function(Value)
-	if not Value then return end
-	task.spawn(function()
-		while ToggleOn("TpNextDoorToggle") do
-			local Door = Functions.GetNextClosedDoor()
-			if Door and Character then pcall(function() Character:PivotTo(Door:GetPivot()) end) end
-			task.wait(0.15)
+	for _, Room in ipairs(CurrentRooms:GetChildren()) do
+		task.spawn(ProcessHonchoRoom, Room)
+	end
+
+	HonchoCorrectBoxConnection = CurrentRooms.ChildAdded:Connect(function(Room)
+		task.spawn(ProcessHonchoRoom, Room)
+	end)
+
+	local lastCheck = 0
+	HonchoAutoDepositConnection = game:GetService("RunService").Heartbeat:Connect(function()
+		if not Toggles.HonchoCorrectBoxESP.Value then return end
+		local now = os.clock()
+		if now - lastCheck < 0.1 then return end
+		lastCheck = now
+		local Character = LocalPlayer and LocalPlayer.Character
+		local HumanoidRootPart = Character and Character:FindFirstChild("HumanoidRootPart")
+		if not Character or not HumanoidRootPart then return end
+		local BoxCandidates = {}
+		for _, Object in ipairs(Character:GetChildren()) do
+			if (Object:IsA("Tool") or Object:IsA("Model")) and (Object.Name == "ArchivesStorageBox" or Object.Name == "ArchivesStorageBoxCorrect") then
+				BoxCandidates[#BoxCandidates + 1] = Object
+			end
+		end
+		local Drops = workspace:FindFirstChild("Drops")
+		if Drops then
+			for _, Object in ipairs(Drops:GetChildren()) do
+				if Object.Name == "ArchivesStorageBox" or Object.Name == "ArchivesStorageBoxCorrect" then
+					BoxCandidates[#BoxCandidates + 1] = Object
+				end
+			end
+		end
+		for _, Box in ipairs(BoxCandidates) do
+			if not (Box and Box.Parent) then continue end
+			local BoxID = Box:GetAttribute("Tool_BoxID") or Box:GetAttribute("BoxID")
+			if BoxID == nil then continue end
+			local Deposit = HonchoDepositCache[tostring(BoxID)]
+			if not Deposit or not Deposit.Parent then continue end
+			if Box.Parent == Drops and not Box:GetAttribute("HonchoCorrectESP") then
+				Box:SetAttribute("HonchoCorrectESP", true)
+				AddHonchoESP(Box, "Correct Box (" .. tostring(BoxID) .. ")")
+			end
+			if Box.Parent == Character then
+				local DepositPart = Deposit:IsA("BasePart") and Deposit or Deposit:FindFirstChildWhichIsA("BasePart", true)
+				if DepositPart and (HumanoidRootPart.Position - DepositPart.Position).Magnitude <= 10 then
+					local Prompt = Deposit:FindFirstChildWhichIsA("ProximityPrompt", true)
+					if Prompt then
+						fireproximityprompt(Prompt)
+					end
+				end
+			end
 		end
 	end)
 end)
 
-OnChange("ForgetMeNotSolver", function(Value)
-	ForgetRunning = false
-	ForgetProcessing = {}
-	ForgetNotified = {}
+
+Groupboxes.Archives_Bypasses = Tabs.Archives:AddLeftGroupbox("Bypasses")
+Groupboxes.Archives_Bypasses:AddToggle("BypassWater", { Text = "Bypass Electric Water", Default = false, Tooltip = "Prevents electric water from hurting you." })
+Groupboxes.Archives_Bypasses:AddToggle("BypassAlma", { Text = "Bypass Alma", Default = false, Tooltip = "Prevents 'Alma' from spawning." })
+Groupboxes.Archives_Bypasses:AddToggle("BypassDrones", { Text = "Bypass Drones", Default = false, Tooltip = "Prevents 'Drones' from attacking you." })
+Groupboxes.Archives_Bypasses:AddToggle("AntiScribbles", { Text = "Bypass Scribbles", Default = false, Tooltip = "Prevents 'Scribbles' from attacking you." })
+
+Groupboxes.Archives_Experimental = Tabs.Archives:AddLeftGroupbox("Experimental")
+
+Toggles.AntiClosetTrash:OnChanged(function(Value)
+	if AntiClosetTrash_Connection then
+		AntiClosetTrash_Connection:Disconnect()
+		AntiClosetTrash_Connection = nil
+	end
 	if not Value then return end
-	ForgetRunning = true
+	AntiClosetTrash_Connection = workspace.ChildAdded:Connect(function(Child)
+		if not Toggles.AntiClosetTrash.Value then return end
+		local Name = Child.Name
+		if Name:sub(1, 6) == "Binder" or Name:sub(1, 4) == "Shoe" or Name:sub(1, 5) == "Shelf" then
+			Child:Destroy()
+		end
+	end)
+end)
+
+Toggles.AntiRansom:OnChanged(function(Value)
+	if AntiRansom_Connection then
+		AntiRansom_Connection:Disconnect()
+		AntiRansom_Connection = nil
+	end
+	if not Value then return end
+	AntiRansom_Connection = workspace.ChildAdded:Connect(function(Child)
+		if Child.Name == "Ransom" and Toggles.AntiRansom.Value then
+			Child:Destroy()
+			print("Ransom gone hehehehehehehehe")
+		end
+	end)
+end)
+
+Toggles.ForgetMeNotSolver:OnChanged(function(Value)
+	if ForgetMeNotConnection then
+		ForgetMeNotConnection:Disconnect()
+		ForgetMeNotConnection = nil
+	end
+	ForgetMeNotRunning = false
+	table.clear(ForgetMeNotProcessing)
+	table.clear(ForgetMeNotNotified)
+	if not Value then return end
+	ForgetMeNotRunning = true
 
 	local function GetCharacter()
-		return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+		return game.Players.LocalPlayer.Character or game.Players.LocalPlayer.CharacterAdded:Wait()
 	end
 
 	local function GetNextRoom(Number)
-		while ForgetRunning do
-			for N = Number + 1, Number + 5 do
-				local Room = CurrentRooms and CurrentRooms:FindFirstChild(tostring(N))
-				if Room then return Room end
+		while ForgetMeNotRunning do
+			for RoomNumber = Number + 1, Number + 5 do
+				local NextRoom = workspace.CurrentRooms:FindFirstChild(tostring(RoomNumber))
+				if NextRoom then return NextRoom end
 			end
 			task.wait(0.1)
 		end
@@ -2428,92 +3226,1148 @@ OnChange("ForgetMeNotSolver", function(Value)
 	end
 
 	local function FireLookAts(Room)
-		for I = 1, 6 do
-			local Obj = Room:FindFirstChild(tostring(I))
-			local LookAt = Obj and Obj:FindFirstChild("LookAt")
-			if LookAt then pcall(function() LookAt:FireServer() end) end
+		for i = 1, 6 do
+			local Obj = Room:FindFirstChild(tostring(i))
+			if Obj then
+				local LookAt = Obj:FindFirstChild("LookAt")
+				if LookAt then
+					pcall(function() LookAt:FireServer() end)
+				end
+			end
+		end
+	end
+
+	local function VoidCharacter()
+		local Character = GetCharacter()
+		if not Character then return end
+
+		local voidCF = CFrame.new(0, -120, 0)
+		local start = tick()
+		while ForgetMeNotRunning and tick() - start < 2 do
+			Character:PivotTo(voidCF)
+			task.wait(0.1)
 		end
 	end
 
 	local function Run(Room)
-		if not ForgetRunning or ForgetProcessing[Room] then return end
-		ForgetProcessing[Room] = true
-		task.wait(2)
-		if not ForgetRunning or not Room.Parent or not Room:FindFirstChild("ForgetMeNotVineDoors", true) then
-			ForgetProcessing[Room] = nil
+		local RoomNumber = tonumber(Room.Name)
+		if not RoomNumber or not ForgetMeNotRunning or ForgetMeNotProcessing[RoomNumber] then return end
+
+		if not Room:FindFirstChild("ForgetMeNotVineDoors", true) then
 			return
 		end
-		FireLookAts(Room)
-		local NextRoom = GetNextRoom(tonumber(Room.Name) or 0)
-		local Door = NextRoom and NextRoom:FindFirstChild("Door")
-		if not NextRoom or not Door or Door:GetAttribute("Opened") == true then
-			ForgetProcessing[Room] = nil
-			return
-		end
-		if not Room:FindFirstChild(LocalPlayer.Name, true) then
-			if not ForgetNotified[Room] then
-				ForgetNotified[Room] = true
-				Functions.Notify({ Title = "Once ilk ForgetMeNot kapisina gir." })
+
+		ForgetMeNotProcessing[RoomNumber] = true
+
+		while ForgetMeNotRunning and Room.Parent do
+			FireLookAts(Room)
+
+			local NextRoom = GetNextRoom(RoomNumber)
+			if not NextRoom then
+				task.wait(0.4)
+				continue
 			end
-			repeat task.wait() until Room:FindFirstChild(LocalPlayer.Name, true) or not ForgetRunning or not Room.Parent
-		end
-		if not ForgetRunning or Door:GetAttribute("Opened") == true then
-			ForgetProcessing[Room] = nil
-			return
-		end
-		local Hidden = Door:WaitForChild("Hidden", 10)
-		if not Hidden then ForgetProcessing[Room] = nil return end
-		task.wait(3)
-		while ForgetRunning and NextRoom.Parent and Door:GetAttribute("Opened") ~= true do
-			local Ch = GetCharacter()
-			if Ch then
-				if Hidden:IsA("BasePart") then
-					Ch:PivotTo(Hidden.CFrame)
-				elseif Hidden:IsA("Model") then
-					Ch:PivotTo(Hidden:GetPivot())
+
+			local Door = NextRoom:FindFirstChild("Door")
+
+			if not Door then
+				local Character = GetCharacter()
+				if Character then
+					local Target = NextRoom:FindFirstChildWhichIsA("BasePart") or NextRoom
+					if Target:IsA("BasePart") then
+						Character:PivotTo(Target.CFrame + Vector3.new(0, 3, 0))
+					elseif Target:IsA("Model") then
+						Character:PivotTo(Target:GetPivot() + Vector3.new(0, 3, 0))
+					else
+						Character:PivotTo(CFrame.new(NextRoom:GetPivot().Position + Vector3.new(0, 5, 0)))
+					end
 				end
+				break
 			end
-			pcall(function() Door.ClientOpen:Fire() end)
-			pcall(function() Door.ClientOpen:FireServer() end)
-			task.wait()
-		end
-		if ForgetRunning and Door:GetAttribute("Opened") == true then
-			local Ch = GetCharacter()
-			if Ch then
-				Ch:PivotTo(CFrame.new(0, -120, 0))
-				Functions.Notify({ Title = "Takildiysan void'e atildin." })
+
+			if Door:GetAttribute("Opened") == true then
+				VoidCharacter()
+				break
 			end
-			ForgetNotified[Room] = nil
+
+			local Hidden = Door:FindFirstChild("Hidden") or Door:WaitForChild("Hidden", 2)
+			if not Hidden then
+				task.wait(0.3)
+				continue
+			end
+
+			while ForgetMeNotRunning and Room.Parent and NextRoom.Parent and Door.Parent and Door:GetAttribute("Opened") ~= true do
+				local Character = GetCharacter()
+				if Character then
+					if Hidden:IsA("BasePart") then
+						Character:PivotTo(Hidden.CFrame)
+					elseif Hidden:IsA("Model") then
+						Character:PivotTo(Hidden:GetPivot())
+					end
+				end
+				pcall(function() Door.ClientOpen:Fire() end)
+				pcall(function() Door.ClientOpen:FireServer() end)
+				task.wait()
+			end
+
+			if ForgetMeNotRunning and Door.Parent and Door:GetAttribute("Opened") == true then
+				VoidCharacter()
+			end
+
+			break
 		end
-		ForgetProcessing[Room] = nil
+
+		ForgetMeNotProcessing[RoomNumber] = nil
 	end
 
 	local function CheckRooms()
-		local Latest = tonumber(LatestRoom.Value) or 0
-		for N = math.max(0, Latest - 4), Latest do
-			if not ForgetRunning then return end
-			local Room = CurrentRooms and CurrentRooms:FindFirstChild(tostring(N))
-			if Room and not ForgetProcessing[Room] then task.spawn(Run, Room) end
+		local LatestRoomNumber = tonumber(LatestRoom.Value) or 0
+		local FirstRoomNumber = math.max(0, LatestRoomNumber - 3)
+		for RoomNumber = FirstRoomNumber, LatestRoomNumber do
+			if not ForgetMeNotRunning then return end
+			local Room = workspace.CurrentRooms:FindFirstChild(tostring(RoomNumber))
+			if Room and not ForgetMeNotProcessing[RoomNumber] then
+				task.spawn(Run, Room)
+			end
 		end
 	end
 
-	local Conn = CurrentRooms.ChildAdded:Connect(function(Room)
+	ForgetMeNotConnection = workspace.CurrentRooms.ChildAdded:Connect(function(Room)
 		if not tonumber(Room.Name) then return end
 		task.spawn(function()
-			task.wait(2)
-			if ForgetRunning and Room.Parent then task.spawn(Run, Room) end
+			task.wait(1)
+			if ForgetMeNotRunning and Room.Parent then
+				task.spawn(Run, Room)
+			end
 		end)
 	end)
-	table.insert(Connections, Conn)
 
 	task.spawn(function()
-		while ForgetRunning do
+		while ForgetMeNotRunning do
 			CheckRooms()
-			task.wait(2)
+			task.wait(1)
 		end
 	end)
+
 	CheckRooms()
 end)
+
+Toggles.BypassWater:OnChanged(function(Value)
+	Functions.Notify({ Title = "PositionSpoof Will Break This!." })
+
+	if WaterBypassConnection then
+		WaterBypassConnection:Disconnect()
+		WaterBypassConnection = nil
+	end
+
+	if not Value then
+		for _, WaterBypassPart in pairs(WaterParts) do
+			if WaterBypassPart then
+				WaterBypassPart:Destroy()
+			end
+		end
+		table.clear(WaterParts)
+		return
+	end
+
+	local CurrentRooms = workspace.CurrentRooms
+
+	local function ProcessWaterBypassRoom(WaterBypassRoom)
+		if not tonumber(WaterBypassRoom.Name) then return end
+
+		task.wait(3)
+
+		local WaterBypassWater = WaterBypassRoom:FindFirstChild("Water")
+		if not WaterBypassWater or WaterParts[WaterBypassWater] then return end
+
+		local WaterBypassPart = Instance.new("Part")
+		WaterBypassPart.Name = "WaterBypass"
+		WaterBypassPart.Anchored = true
+		WaterBypassPart.CanCollide = true
+		WaterBypassPart.CanTouch = false
+		WaterBypassPart.CanQuery = false
+		WaterBypassPart.Transparency = 0.25
+		WaterBypassPart.Color = Color3.fromRGB(0, 150, 255)
+		WaterBypassPart.Material = Enum.Material.ForceField
+
+		local WaterBypassSize, WaterBypassCFrame
+		if WaterBypassWater:IsA("BasePart") then
+			WaterBypassSize = WaterBypassWater.Size
+			WaterBypassCFrame = WaterBypassWater.CFrame
+		elseif WaterBypassWater:IsA("Model") then
+			WaterBypassCFrame, WaterBypassSize = WaterBypassWater:GetBoundingBox()
+		else
+			WaterBypassSize = Vector3.new(10, 1.5, 10)
+			WaterBypassCFrame = WaterBypassWater:GetPivot()
+		end
+
+		WaterBypassPart.Size = WaterBypassSize + Vector3.new(0, 0.5, 0)
+		WaterBypassPart.CFrame = WaterBypassCFrame * CFrame.new(0, 0.25, 0)
+
+		if WaterBypassPart.Size.Y > 3 then
+			WaterBypassPart:Destroy()
+			Functions.Notify({ Title = "Water Bypass removed: Softlock." })
+			return
+		end
+
+		WaterBypassPart.Parent = WaterBypassRoom
+		WaterParts[WaterBypassWater] = WaterBypassPart
+	end
+
+	local WaterBypassLatestRoomNumber = tonumber(LatestRoom.Value) or 0
+	for WaterBypassRoomNumber = math.max(0, WaterBypassLatestRoomNumber - 4), WaterBypassLatestRoomNumber do
+		local WaterBypassRoom = CurrentRooms:FindFirstChild(tostring(WaterBypassRoomNumber))
+		if WaterBypassRoom then
+			task.spawn(ProcessWaterBypassRoom, WaterBypassRoom)
+		end
+	end
+
+	WaterBypassConnection = CurrentRooms.ChildAdded:Connect(function(WaterBypassRoom)
+		task.spawn(ProcessWaterBypassRoom, WaterBypassRoom)
+	end)
+end)
+
+Toggles.BypassAlma:OnChanged(function(Value)
+	if AlmaConnection then
+		AlmaConnection:Disconnect()
+		AlmaConnection = nil
+	end
+	if Value then
+		for _, child in ipairs(workspace:GetChildren()) do
+			if child.Name == "Alma" then child:Destroy() end
+		end
+		AlmaConnection = workspace.ChildAdded:Connect(function(child)
+			if child.Name == "Alma" then child:Destroy() end
+		end)
+	end
+end)
+
+Toggles.AntiScribbles:OnChanged(function(Value)
+	if AntiScribbles_Connection then
+		AntiScribbles_Connection:Disconnect()
+		AntiScribbles_Connection = nil
+	end
+	if not Value then return end
+	AntiScribbles_Connection = workspace.ChildAdded:Connect(function(Child)
+		if Child.Name == "Scribbles" and Toggles.AntiScribbles.Value then
+			local ExploitSribbleWarning = Child:FindFirstChild("IfYoureExploitingDeleteThis")
+			if ExploitSribbleWarning then ExploitSribbleWarning:Destroy() end
+		end
+	end)
+end)
+
+Toggles.BypassDrones:OnChanged(function(Value)
+	local RS = game:GetService("ReplicatedStorage")
+	local function ProcessDrones(drones)
+		local WalkedInto = drones:FindFirstChild("WalkedInto") or drones:WaitForChild("WalkedInto", 3)
+		if WalkedInto and not DroneWalkedIntoParents[WalkedInto] then
+			DroneWalkedIntoParents[WalkedInto] = drones
+			WalkedInto.Parent = RS
+		end
+	end
+	if Value then
+		for _, child in ipairs(workspace:GetChildren()) do
+			if child.Name == "Drones" then ProcessDrones(child) end
+		end
+		if DroneConnection then DroneConnection:Disconnect() end
+		DroneConnection = workspace.ChildAdded:Connect(function(child)
+			if child.Name == "Drones" then ProcessDrones(child) end
+		end)
+	else
+		for WalkedInto, originalParent in pairs(DroneWalkedIntoParents) do
+			if WalkedInto and WalkedInto.Parent and originalParent and originalParent.Parent then
+				WalkedInto.Parent = originalParent
+			end
+		end
+		table.clear(DroneWalkedIntoParents)
+		if DroneConnection then
+			DroneConnection:Disconnect()
+			DroneConnection = nil
+		end
+	end
+end)
+
+Groupboxes.Stairwell_Misc = Tabs.Stairwell:AddLeftGroupbox("Exploits / Anti / Misc")
+
+
+
+Groupboxes.Stairwell_Misc:AddDivider()
+Groupboxes.Stairwell_Misc:AddToggle("BypassNoise", { Text = "Noise Tv Breaker", Default = false, Tooltip = "Breaks the tv of noise while holding it." })
+
+
+Groupboxes.Stairwell_Misc:AddToggle("DroppedItemValue", { Text = "Item Number", Default = false, Tooltip = "Shows the number of dropped items." })
+
+Groupboxes.Stairwell_Misc:AddToggle("KillAllWithCart", {
+	Text = "Kill All (Requires ≥1 Cart)",
+	Default = false,
+})
+Groupboxes.Stairwell_Misc:AddToggle("FlingCreak", {
+	Text = "Bug Out Creak (Requires ≥5 Cart)",
+	Default = false,
+	ToolTip = "DONT TOUCH THE CARTS URSELF, U WILL DIE"
+})
+Groupboxes.Stairwell_Misc:AddToggle("CreakAggressionMeter", {
+    Text = "Creak Aggression Meter",
+    Default = false,
+    Tooltip = "Shows Creak's aggression above its head."
+})
+
+local CreakAggressionMetersTable = {}
+local CreakAggressionCamera = Workspace.CurrentCamera
+local CreakAggressionChildAddedConnection = nil
+
+local function CleanupCreakAggressionMeter(CreakModel)
+    local CreakMeterData = CreakAggressionMetersTable[CreakModel]
+    if not CreakMeterData then return end
+
+    CreakAggressionMetersTable[CreakModel] = nil
+
+    if CreakMeterData.RenderConnection then
+        CreakMeterData.RenderConnection:Disconnect()
+    end
+    if CreakMeterData.DestroyConnection then
+        CreakMeterData.DestroyConnection:Disconnect()
+    end
+
+    for _, CreakDrawingObject in ipairs(CreakMeterData.Drawings) do
+        pcall(function() CreakDrawingObject:Remove() end)
+    end
+end
+
+local function GetCreakAggressionValue(CreakModel)
+    local CreakAnimator = CreakModel:FindFirstChildOfClass("Animator")
+        or (CreakModel:FindFirstChild("AnimationController") and CreakModel.AnimationController:FindFirstChildOfClass("Animator"))
+        or CreakModel:FindFirstChildOfClass("AnimationController")
+
+    if not CreakAnimator then return nil end
+
+    for _, CreakAnimationTrack in ipairs(CreakAnimator:GetPlayingAnimationTracks()) do
+        if CreakAnimationTrack.Name == "CreakGraph" or (CreakAnimationTrack.Animation and CreakAnimationTrack.Animation.Name == "CreakGraph") then
+            local CreakSuccess, CreakAggressionValue = pcall(CreakAnimationTrack.GetParameter, CreakAnimationTrack, "Aggression")
+            if CreakSuccess and typeof(CreakAggressionValue) == "number" then
+                return math.clamp(CreakAggressionValue, 0, 1)
+            end
+        end
+    end
+    return nil
+end
+
+local function CreateCreakAggressionDrawings()
+    local CreakDrawingList = {}
+
+    local function CreateCreakDrawing(CreakDrawingType)
+        local CreakNewDrawing = Drawing.new(CreakDrawingType)
+        table.insert(CreakDrawingList, CreakNewDrawing)
+        return CreakNewDrawing
+    end
+
+    local CreakTitleText = CreateCreakDrawing("Text")
+    CreakTitleText.Text = "Aggression --%"
+    CreakTitleText.Size = 16
+    CreakTitleText.Font = Drawing.Fonts.Plex
+    CreakTitleText.Color = Color3.fromRGB(255, 255, 255)
+    CreakTitleText.Center = true
+    CreakTitleText.Outline = true
+    CreakTitleText.Visible = false
+
+    local CreakBarBackground = CreateCreakDrawing("Square")
+    CreakBarBackground.Size = Vector2.new(112, 6)
+    CreakBarBackground.Filled = true
+    CreakBarBackground.Color = Color3.fromRGB(58, 58, 64)
+    CreakBarBackground.Transparency = 0.15
+    CreakBarBackground.Visible = false
+
+    local CreakBarFill = CreateCreakDrawing("Square")
+    CreakBarFill.Size = Vector2.new(0, 6)
+    CreakBarFill.Filled = true
+    CreakBarFill.Visible = false
+
+    return {
+        Drawings = CreakDrawingList,
+        TitleText = CreakTitleText,
+        BarBackground = CreakBarBackground,
+        BarFill = CreakBarFill
+    }
+end
+
+local function AddCreakAggressionMeter(CreakModel)
+    if not Toggles.CreakAggressionMeter.Value or CreakModel.Name ~= "Creak" or CreakAggressionMetersTable[CreakModel] then
+        return
+    end
+
+    local CreakHeadPart = CreakModel:FindFirstChild("Head")
+    if not CreakHeadPart or not CreakHeadPart:IsA("BasePart") then return end
+
+    local CreakMeterData = CreateCreakAggressionDrawings()
+    CreakAggressionMetersTable[CreakModel] = CreakMeterData
+
+    CreakMeterData.RenderConnection = RunService.RenderStepped:Connect(function()
+        if not Toggles.CreakAggressionMeter.Value or not CreakModel.Parent or not CreakHeadPart.Parent then
+            CleanupCreakAggressionMeter(CreakModel)
+            return
+        end
+
+        if not CreakAggressionCamera or not CreakAggressionCamera.Parent then
+            CreakAggressionCamera = Workspace.CurrentCamera
+            if not CreakAggressionCamera then return end
+        end
+
+        local CreakScreenPosition, CreakIsOnScreen = CreakAggressionCamera:WorldToViewportPoint(CreakHeadPart.Position + Vector3.new(0, 1.85, 0))
+        if not (CreakIsOnScreen and CreakScreenPosition.Z > 0) then
+            CreakMeterData.TitleText.Visible = false
+            CreakMeterData.BarBackground.Visible = false
+            CreakMeterData.BarFill.Visible = false
+            return
+        end
+
+        CreakMeterData.TitleText.Position = Vector2.new(CreakScreenPosition.X, CreakScreenPosition.Y - 28)
+        CreakMeterData.BarBackground.Position = Vector2.new(CreakScreenPosition.X - 56, CreakScreenPosition.Y - 6)
+        CreakMeterData.BarFill.Position = CreakMeterData.BarBackground.Position
+
+        local CreakAggressionValue = GetCreakAggressionValue(CreakModel)
+
+        if not CreakAggressionValue then
+            CreakMeterData.TitleText.Text = "Aggression --%"
+            CreakMeterData.TitleText.Color = Color3.fromRGB(200, 200, 200)
+            CreakMeterData.BarFill.Size = Vector2.new(0, 6)
+            CreakMeterData.TitleText.Visible = true
+            CreakMeterData.BarBackground.Visible = true
+            CreakMeterData.BarFill.Visible = false
+            return
+        end
+
+        CreakMeterData.TitleText.Text = "Aggression " .. math.floor(CreakAggressionValue * 100 + 0.5) .. "%"
+        CreakMeterData.TitleText.Color = Color3.fromRGB(255, 255, 255)
+        CreakMeterData.BarFill.Size = Vector2.new(112 * CreakAggressionValue, 6)
+        CreakMeterData.BarFill.Color = Color3.fromRGB(70, 220, 100):Lerp(Color3.fromRGB(255, 55, 55), CreakAggressionValue)
+        CreakMeterData.TitleText.Visible = true
+        CreakMeterData.BarBackground.Visible = true
+        CreakMeterData.BarFill.Visible = true
+    end)
+
+    CreakMeterData.DestroyConnection = CreakModel.Destroying:Connect(function()
+        CleanupCreakAggressionMeter(CreakModel)
+    end)
+end
+
+local function StartCreakAggressionListener()
+    if CreakAggressionChildAddedConnection then return end
+
+    local CreakLiveEntitiesFolder = Workspace:FindFirstChild("LiveEntities")
+    if not CreakLiveEntitiesFolder then return end
+
+    CreakAggressionChildAddedConnection = CreakLiveEntitiesFolder.ChildAdded:Connect(function(CreakNewChild)
+        if CreakNewChild.Name == "Creak" then
+            AddCreakAggressionMeter(CreakNewChild)
+        end
+    end)
+end
+
+local function StopCreakAggressionListener()
+    if CreakAggressionChildAddedConnection then
+        CreakAggressionChildAddedConnection:Disconnect()
+        CreakAggressionChildAddedConnection = nil
+    end
+end
+
+Toggles.CreakAggressionMeter:OnChanged(function(CreakToggleEnabled)
+    if CreakToggleEnabled then
+        for _, CreakEntityModel in ipairs(Objects.Entities or {}) do
+            AddCreakAggressionMeter(CreakEntityModel)
+        end
+
+        local CreakLiveEntitiesFolder = Workspace:FindFirstChild("LiveEntities")
+        local CreakExistingModel = CreakLiveEntitiesFolder and CreakLiveEntitiesFolder:FindFirstChild("Creak")
+        if CreakExistingModel then
+            AddCreakAggressionMeter(CreakExistingModel)
+        end
+
+        StartCreakAggressionListener()
+    else
+        StopCreakAggressionListener()
+
+        for CreakEntityModel in pairs(CreakAggressionMetersTable) do
+            CleanupCreakAggressionMeter(CreakEntityModel)
+        end
+    end
+end)
+
+Toggles.KillAllWithCart:OnChanged(function(KillAllWithCartState)
+	if not KillAllWithCartState then return end
+
+	local KillAllWithCartIndex = 1
+
+	task.spawn(function()
+		while Toggles.KillAllWithCart.Value do
+			local KillAllWithCartCarts = {}
+			for _, KillAllWithCartModel in ipairs(workspace.Misc:GetChildren()) do
+				if KillAllWithCartModel.Name == "ShoppingCart" and KillAllWithCartModel:IsA("Model") then
+					KillAllWithCartCarts[#KillAllWithCartCarts + 1] = KillAllWithCartModel
+				end
+			end
+
+			local KillAllWithCartAlivePlayers = {}
+			for _, KillAllWithCartPlayer in ipairs(game.Players:GetPlayers()) do
+				if KillAllWithCartPlayer ~= game.Players.LocalPlayer and KillAllWithCartPlayer.Character then
+					local KillAllWithCartHumanoid = KillAllWithCartPlayer.Character:FindFirstChildOfClass("Humanoid")
+					if KillAllWithCartHumanoid and KillAllWithCartHumanoid.Health > 0 then
+						KillAllWithCartAlivePlayers[#KillAllWithCartAlivePlayers + 1] = KillAllWithCartPlayer
+					end
+				end
+			end
+
+			if #KillAllWithCartCarts > 0 and #KillAllWithCartAlivePlayers > 0 then
+				if KillAllWithCartIndex > #KillAllWithCartAlivePlayers then
+					KillAllWithCartIndex = 1
+				end
+				local KillAllWithCartTarget = KillAllWithCartAlivePlayers[KillAllWithCartIndex]
+				local KillAllWithCartTargetCFrame = KillAllWithCartTarget.Character:GetPivot()
+				for KillAllWithCartCartIndex = 1, #KillAllWithCartCarts do
+					KillAllWithCartCarts[KillAllWithCartCartIndex]:PivotTo(KillAllWithCartTargetCFrame)
+				end
+				KillAllWithCartIndex = KillAllWithCartIndex + 1
+			end
+			task.wait(0.10)
+		end
+	end)
+end)
+
+Toggles.FlingCreak:OnChanged(function(FlingCreakState)
+	if not FlingCreakState then return end
+
+	task.spawn(function()
+		while Toggles.FlingCreak.Value do
+			local creak = workspace:FindFirstChild("LiveEntities") and workspace.LiveEntities:FindFirstChild("Creak")
+			if creak then
+				local targetCFrame = creak:GetPivot()
+				for _, model in ipairs(workspace.Misc:GetChildren()) do
+					if model.Name == "ShoppingCart" and model:IsA("Model") then
+						model:PivotTo(targetCFrame)
+					end
+				end
+			end
+			task.wait(0.10)
+		end
+	end)
+end)
+
+
+
+
+Groupboxes.Stairwell_Misc:AddDivider()
+
+
+Groupboxes.Stairwell_Misc:AddToggle("DisableStairwellCrusherCollision", {
+	Text = "Disable Crushers",
+	Default = false,
+})
+Groupboxes.Stairwell_Misc:AddToggle("DeleteStairwellCrusherExceptBasicWall", {
+	Text = "Delete Crushers",
+	Default = false,
+})
+Groupboxes.Stairwell_Misc:AddToggle("MeldRemover", {
+	Text = "Remove Meld",
+	Default = false,
+})
+
+Groupboxes.Stairwell_Misc:AddToggle("StairwellLandingSpam", {
+	Text = "TP to trash and drop trash.",
+	Tooltip = "Combine with orbit, or bring all dropped items.",
+	Default = false,
+})
+
+Toggles.DisableStairwellCrusherCollision:OnChanged(function(DisableStairwellCrusherCollisionState)
+	if not DisableStairwellCrusherCollisionState then return end
+
+	task.spawn(function()
+		while Toggles.DisableStairwellCrusherCollision.Value do
+			for _, DisableStairwellCrusherRoom in ipairs(workspace.CurrentRooms:GetChildren()) do
+				local DisableStairwellCrusherAssets = DisableStairwellCrusherRoom:FindFirstChild("Assets")
+				if DisableStairwellCrusherAssets then
+					for _, DisableStairwellCrusherContainer in ipairs(DisableStairwellCrusherAssets:GetChildren()) do
+						if DisableStairwellCrusherContainer.Name == "StairwellCrusherContainer1" then
+							for _, DisableStairwellCrusherDescendant in ipairs(DisableStairwellCrusherContainer:GetDescendants()) do
+								if DisableStairwellCrusherDescendant:IsA("BasePart") and DisableStairwellCrusherDescendant.CanCollide then
+									local DisableStairwellCrusherUnderBasicWall = false
+									local DisableStairwellCrusherParent = DisableStairwellCrusherDescendant.Parent
+									while DisableStairwellCrusherParent and DisableStairwellCrusherParent ~= DisableStairwellCrusherContainer do
+										if DisableStairwellCrusherParent.Name == "BasicWall" then
+											DisableStairwellCrusherUnderBasicWall = true
+											break
+										end
+										DisableStairwellCrusherParent = DisableStairwellCrusherParent.Parent
+									end
+									if not DisableStairwellCrusherUnderBasicWall then
+										DisableStairwellCrusherDescendant.CanCollide = false
+									end
+								end
+							end
+						end
+
+						local DisableStairwellCrusher = DisableStairwellCrusherContainer:FindFirstChild("StairwellCrusher")
+						if DisableStairwellCrusher then
+							local DisableStairwellCrusherOuterTrigger = DisableStairwellCrusher:FindFirstChild("OuterTrigger")
+							local DisableStairwellCrusherCoreTrigger = DisableStairwellCrusher:FindFirstChild("CoreTrigger")
+							if DisableStairwellCrusherOuterTrigger then
+								DisableStairwellCrusherOuterTrigger:Destroy()
+							end
+							if DisableStairwellCrusherCoreTrigger then
+								DisableStairwellCrusherCoreTrigger:Destroy()
+							end
+						end
+					end
+				end
+			end
+			task.wait(0.5)
+		end
+	end)
+end)
+Toggles.DeleteStairwellCrusherExceptBasicWall:OnChanged(function(DeleteStairwellCrusherExceptBasicWallState)
+	if not DeleteStairwellCrusherExceptBasicWallState then return end
+
+	task.spawn(function()
+		while Toggles.DeleteStairwellCrusherExceptBasicWall.Value do
+			for _, DeleteStairwellCrusherRoom in ipairs(workspace.CurrentRooms:GetChildren()) do
+				local DeleteStairwellCrusherAssets = DeleteStairwellCrusherRoom:FindFirstChild("Assets")
+				if DeleteStairwellCrusherAssets then
+					for _, DeleteStairwellCrusherContainer in ipairs(DeleteStairwellCrusherAssets:GetChildren()) do
+						if DeleteStairwellCrusherContainer.Name == "StairwellCrusherContainer1" then
+							local DeleteStairwellCrusherToDestroy = {}
+							for _, DeleteStairwellCrusherDescendant in ipairs(DeleteStairwellCrusherContainer:GetDescendants()) do
+								local DeleteStairwellCrusherUnderBasicWall = false
+								local DeleteStairwellCrusherParent = DeleteStairwellCrusherDescendant.Parent
+								while DeleteStairwellCrusherParent and DeleteStairwellCrusherParent ~= DeleteStairwellCrusherContainer do
+									if DeleteStairwellCrusherParent.Name == "BasicWall" then
+										DeleteStairwellCrusherUnderBasicWall = true
+										break
+									end
+									DeleteStairwellCrusherParent = DeleteStairwellCrusherParent.Parent
+								end
+								if not DeleteStairwellCrusherUnderBasicWall and DeleteStairwellCrusherDescendant.Name ~= "BasicWall" then
+									DeleteStairwellCrusherToDestroy[#DeleteStairwellCrusherToDestroy + 1] = DeleteStairwellCrusherDescendant
+								end
+							end
+							for _, DeleteStairwellCrusherInstance in ipairs(DeleteStairwellCrusherToDestroy) do
+								if DeleteStairwellCrusherInstance and DeleteStairwellCrusherInstance.Parent then
+									DeleteStairwellCrusherInstance:Destroy()
+								end
+							end
+						end
+					end
+				end
+			end
+			task.wait(0.5)
+		end
+	end)
+end)
+
+Toggles.MeldRemover:OnChanged(function(State)
+	if not State then return end
+	task.spawn(function()
+		while Toggles.MeldRemover.Value do
+			for _, room in pairs(workspace.CurrentRooms:GetChildren()) do
+				for _, folderName in ipairs({"Assets", "Parts"}) do
+					local folder = room:FindFirstChild(folderName)
+					if folder then
+						for _, child in ipairs(folder:GetChildren()) do
+							if child.Name == "MeldWall"
+								or child.Name == "Boleahghth29tdgfhy2thuy2htuu259uhh3u" -- no qeustions asked
+							then
+								child:Destroy()
+							end
+						end
+					end
+				end
+				for _, name in ipairs({"MeldData", "MeldPads", "Meldview", "Meld"}) do
+					local obj = room:FindFirstChild(name)
+					if obj and obj:IsA("Folder") then
+						obj:Destroy()
+					end
+				end
+			end
+			task.wait(0.5)
+		end
+	end)
+end)
+
+
+
+
+local StairwellLandingToken = 0
+
+Toggles.StairwellLandingSpam:OnChanged(function(Value)
+	StairwellLandingToken += 1
+
+	if not Value then
+		return
+	end
+
+	local CurrentToken = StairwellLandingToken
+
+	task.spawn(function()
+		local CurrentRooms = workspace.CurrentRooms
+		local LocalPlayer = Services.Players.LocalPlayer
+
+		while Toggles.StairwellLandingSpam.Value and CurrentToken == StairwellLandingToken do
+			local StairwellModels = {}
+
+			for _, Room in ipairs(CurrentRooms:GetChildren()) do
+				local StairwellLandingLogic = Room:FindFirstChild("StairwellLandingLogic")
+
+				if StairwellLandingLogic then
+					for _, Model in ipairs(StairwellLandingLogic:GetChildren()) do
+						if Model:IsA("Model") then
+							local Prompts = {}
+
+							for _, Object in ipairs(Model:GetDescendants()) do
+								if Object:IsA("ProximityPrompt") then
+									Prompts[#Prompts + 1] = Object
+								end
+							end
+
+							if #Prompts > 0 then
+								StairwellModels[#StairwellModels + 1] = {
+									Model = Model,
+									Prompts = Prompts,
+								}
+							end
+						end
+					end
+				end
+			end
+
+			table.sort(StairwellModels, function(First, Second)
+				local FirstRoom = First.Model.Parent and First.Model.Parent.Parent
+				local SecondRoom = Second.Model.Parent and Second.Model.Parent.Parent
+
+				return (tonumber(FirstRoom and FirstRoom.Name) or math.huge) <
+					(tonumber(SecondRoom and SecondRoom.Name) or math.huge)
+			end)
+
+			for _, Data in ipairs(StairwellModels) do
+				if not Toggles.StairwellLandingSpam.Value or CurrentToken ~= StairwellLandingToken then
+					break
+				end
+
+				local Model = Data.Model
+
+				while Model.Parent
+					and Model:IsDescendantOf(workspace)
+					and Toggles.StairwellLandingSpam.Value
+					and CurrentToken == StairwellLandingToken do
+
+					local Character = LocalPlayer.Character
+					local HumanoidRootPart = Character and Character:FindFirstChild("HumanoidRootPart")
+
+					if HumanoidRootPart then
+						HumanoidRootPart.CFrame = Model:GetPivot() + Vector3.new(0, 5, 0)
+
+						for Index = 1, #Data.Prompts do
+							local Prompt = Data.Prompts[Index]
+
+							if Prompt.Parent and Prompt.Enabled and fireproximityprompt then
+								fireproximityprompt(Prompt)
+							end
+						end
+
+						if keypress and keyrelease then
+							keypress(0x58)
+							task.wait(0.03)
+							keyrelease(0x58)
+						elseif Abysall
+							and Abysall.Environment
+							and Abysall.Environment.keypress
+							and Abysall.Environment.keyrelease then
+
+							Abysall.Environment.keypress(0x58)
+							task.wait(0.03)
+							Abysall.Environment.keyrelease(0x58)
+						end
+					end
+
+					Services.RunService.Heartbeat:Wait()
+				end
+			end
+
+			Services.RunService.Heartbeat:Wait()
+		end
+	end)
+end)
+
+
+Groupboxes.Stairwell_Misc:AddDivider()
+
+Groupboxes.Stairwell_Misc:AddButton("TP Shopping Carts To Player", function()
+	local ShoppingCartTargetName = Options.ShoppingCartTarget.Value
+	local ShoppingCartTargetPlayer = game.Players:FindFirstChild(ShoppingCartTargetName)
+	if not ShoppingCartTargetPlayer or not ShoppingCartTargetPlayer.Character then return end
+	local ShoppingCartTargetCFrame = ShoppingCartTargetPlayer.Character:GetPivot()
+	for _, ShoppingCartModel in ipairs(workspace.Misc:GetChildren()) do
+		if ShoppingCartModel.Name == "ShoppingCart" and ShoppingCartModel:IsA("Model") then
+			ShoppingCartModel:PivotTo(ShoppingCartTargetCFrame)
+		end
+	end
+end)
+
+Groupboxes.Stairwell_Misc:AddDropdown("ShoppingCartTarget", {
+	Text = "Shopping Cart Target",
+	Values = (function()
+		local ShoppingCartPlayerNames = {}
+		for _, ShoppingCartPlayer in ipairs(game.Players:GetPlayers()) do
+			ShoppingCartPlayerNames[#ShoppingCartPlayerNames + 1] = ShoppingCartPlayer.Name
+		end
+		return ShoppingCartPlayerNames
+	end)(),
+	Default = game.Players.LocalPlayer.Name,
+})
+
+Groupboxes.Stairwell_Misc:AddButton("Refresh Players", function()
+	local ShoppingCartPlayerNames = {}
+	for _, ShoppingCartPlayer in ipairs(game.Players:GetPlayers()) do
+		ShoppingCartPlayerNames[#ShoppingCartPlayerNames + 1] = ShoppingCartPlayer.Name
+	end
+	Options.ShoppingCartTarget:SetValues(ShoppingCartPlayerNames)
+end)
+
+Groupboxes.Stairwell_Experimental = Tabs.Stairwell:AddRightGroupbox("Experimental")
+
+
+local function TPDropsToNearestGrinder()
+    local TPDropsToNearestGrinderDropsFolder =
+        workspace:FindFirstChild("Drops")
+
+    local TPDropsToNearestGrinderRootPart =
+        Character and Character:FindFirstChild("HumanoidRootPart")
+
+    if not TPDropsToNearestGrinderDropsFolder
+        or not TPDropsToNearestGrinderRootPart
+        or not CurrentRooms then
+        return
+    end
+
+    local TPDropsToNearestGrinderPlayerPosition =
+        TPDropsToNearestGrinderRootPart.Position
+
+    local TPDropsToNearestGrinderNearestGrinder = nil
+    local TPDropsToNearestGrinderNearestDistance = math.huge
+
+    for _, TPDropsToNearestGrinderRoom in
+        ipairs(CurrentRooms:GetChildren()) do
+
+        local TPDropsToNearestGrinderScrapper =
+            TPDropsToNearestGrinderRoom:FindFirstChild(
+                "StairwellScrapper",
+                true
+            )
+
+        if TPDropsToNearestGrinderScrapper then
+            for _, TPDropsToNearestGrinderObject in
+                ipairs(TPDropsToNearestGrinderScrapper:GetDescendants()) do
+
+                if TPDropsToNearestGrinderObject.Name == "Grinder1"
+                    and (
+                        TPDropsToNearestGrinderObject:IsA("Model")
+                        or TPDropsToNearestGrinderObject:IsA("BasePart")
+                    ) then
+
+                    local TPDropsToNearestGrinderPosition =
+                        TPDropsToNearestGrinderObject:GetPivot().Position
+
+                    local TPDropsToNearestGrinderDistance =
+                        (
+                            TPDropsToNearestGrinderPlayerPosition
+                            - TPDropsToNearestGrinderPosition
+                        ).Magnitude
+
+                    if TPDropsToNearestGrinderDistance
+                        < TPDropsToNearestGrinderNearestDistance then
+
+                        TPDropsToNearestGrinderNearestDistance =
+                            TPDropsToNearestGrinderDistance
+
+                        TPDropsToNearestGrinderNearestGrinder =
+                            TPDropsToNearestGrinderObject
+                    end
+                end
+            end
+        end
+    end
+
+    if not TPDropsToNearestGrinderNearestGrinder then
+        return
+    end
+
+    local TPDropsToNearestGrinderCFrame =
+        TPDropsToNearestGrinderNearestGrinder:GetPivot()
+
+    for _, TPDropsToNearestGrinderDropItem in
+        ipairs(TPDropsToNearestGrinderDropsFolder:GetChildren()) do
+
+        if TPDropsToNearestGrinderDropItem:IsA("Model")
+            or TPDropsToNearestGrinderDropItem:IsA("BasePart") then
+
+            TPDropsToNearestGrinderDropItem:PivotTo(
+                TPDropsToNearestGrinderCFrame
+            )
+        end
+    end
+end
+
+Groupboxes.Stairwell_Experimental:AddButton({
+    Text = "TP All Drops to Nearest Grinder",
+    Func = TPDropsToNearestGrinder,
+    DoubleClick = false,
+    Tooltip = "Teleports every dropped item to the grinder closest to you",
+})
+
+local function BringDroppedItems()
+	local workspaceDropsFolder = workspace:FindFirstChild("Drops")
+	if LocalPlayer and LocalPlayer.Character then
+		local playerHumanoidRootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+		if playerHumanoidRootPart and workspaceDropsFolder then
+			for _, itemToBring in ipairs(workspaceDropsFolder:GetChildren()) do
+				if itemToBring:IsA("Model") then
+					itemToBring:PivotTo(playerHumanoidRootPart.CFrame)
+				elseif itemToBring:IsA("BasePart") then
+					itemToBring.CFrame = playerHumanoidRootPart.CFrame
+				end
+			end
+		end
+	end
+end
+
+Groupboxes.Stairwell_Experimental:AddButton({
+	Text = "Bring Dropped Items",
+	Func = function() BringDroppedItems() end,
+	DoubleClick = false,
+	Tooltip = "Brings all dropped items."
+})
+
+Groupboxes.Stairwell_Experimental:AddToggle("EnableDroppedItemsInterval", {
+	Text = "Enable Interval",
+	Default = false,
+	Tooltip = "Automatically brings dropped items at the selected interval."
+})
+
+Groupboxes.Stairwell_Experimental:AddSlider("DroppedItemsInterval", {
+	Text = "Interval",
+	Default = 1,
+	Min = 0,
+	Max = 60,
+	Rounding = 1,
+	Compact = false,
+	Tooltip = "How often dropped items are brought."
+})
+
+Toggles.EnableDroppedItemsInterval:OnChanged(function(enabled)
+	if enabled then
+		if droppedItemsIntervalRunning then return end
+		droppedItemsIntervalRunning = true
+		task.spawn(function()
+			while Toggles.EnableDroppedItemsInterval.Value do
+				BringDroppedItems()
+				local interval = Options.DroppedItemsInterval.Value
+				if interval <= 0 then
+					task.wait()
+				else
+					task.wait(interval)
+				end
+			end
+			droppedItemsIntervalRunning = false
+		end)
+	end
+end)
+
+Groupboxes.Stairwell_Experimental:AddDivider()
+
+Groupboxes.Stairwell_Experimental:AddToggle("OrbitDroppedItems", {
+	Text = "Orbit Dropped Items",
+	Default = false,
+	Tooltip = "Orbits dropped items around you. Teleports them to you every 10s to prevent despawn."
+})
+
+Groupboxes.Stairwell_Experimental:AddSlider("OrbitDroppedItemsHeight", {
+	Text = "Height",
+	Default = 2,
+	Min = -20,
+	Max = 20,
+	Rounding = 1,
+	Compact = false,
+	Tooltip = "The height of the orbit."
+})
+
+Groupboxes.Stairwell_Experimental:AddSlider("OrbitDroppedItemsDistance", {
+	Text = "Distance",
+	Default = 5,
+	Min = 0,
+	Max = 50,
+	Rounding = 1,
+	Compact = false,
+	Tooltip = "The distance of the orbit."
+})
+
+Groupboxes.Stairwell_Experimental:AddSlider("OrbitDroppedItemsSpeed", {
+	Text = "Speed",
+	Default = 2,
+	Min = 0,
+	Max = 20,
+	Rounding = 1,
+	Compact = false,
+	Tooltip = "The speed of the orbit."
+})
+
+Toggles.OrbitDroppedItems:OnChanged(function(OrbitDroppedItemsEnabled)
+	if OrbitDroppedItemsConnection then
+		OrbitDroppedItemsConnection:Disconnect()
+		OrbitDroppedItemsConnection = nil
+	end
+	if not OrbitDroppedItemsEnabled then return end
+	OrbitDroppedItemsAngle = 0
+	OrbitDroppedItemsLastTeleport = tick()
+	OrbitDroppedItemsPauseUntil = 0
+	OrbitDroppedItemsConnection = RunService.Heartbeat:Connect(function(OrbitDroppedItemsDeltaTime)
+		if not LocalPlayer or not LocalPlayer.Character then return end
+		local OrbitDroppedItemsHumanoidRootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+		local OrbitDroppedItemsDropsFolder = workspace:FindFirstChild("Drops")
+		if not OrbitDroppedItemsHumanoidRootPart or not OrbitDroppedItemsDropsFolder then return end
+		local OrbitDroppedItemsHeightValue = Options.OrbitDroppedItemsHeight.Value
+		local OrbitDroppedItemsDistanceValue = Options.OrbitDroppedItemsDistance.Value
+		local OrbitDroppedItemsSpeedValue = Options.OrbitDroppedItemsSpeed.Value
+		local OrbitDroppedItemsCurrentTime = tick()
+		local OrbitDroppedItemsList = {}
+		for _, OrbitDroppedItemsObject in ipairs(OrbitDroppedItemsDropsFolder:GetChildren()) do
+			if OrbitDroppedItemsObject:IsA("Model") or OrbitDroppedItemsObject:IsA("BasePart") then
+				OrbitDroppedItemsList[#OrbitDroppedItemsList + 1] = OrbitDroppedItemsObject
+			end
+		end
+		local OrbitDroppedItemsCount = #OrbitDroppedItemsList
+		if OrbitDroppedItemsCount == 0 then return end
+		if OrbitDroppedItemsCurrentTime - OrbitDroppedItemsLastTeleport >= 10 then
+			OrbitDroppedItemsLastTeleport = OrbitDroppedItemsCurrentTime
+			OrbitDroppedItemsPauseUntil = OrbitDroppedItemsCurrentTime + 2
+			local OrbitDroppedItemsCenterPosition = OrbitDroppedItemsHumanoidRootPart.Position
+			for _, OrbitDroppedItemsObject in ipairs(OrbitDroppedItemsList) do
+				if OrbitDroppedItemsObject:IsA("Model") then
+					OrbitDroppedItemsObject:PivotTo(CFrame.new(OrbitDroppedItemsCenterPosition))
+				else
+					OrbitDroppedItemsObject.CFrame = CFrame.new(OrbitDroppedItemsCenterPosition)
+				end
+			end
+		end
+		if OrbitDroppedItemsCurrentTime < OrbitDroppedItemsPauseUntil then return end
+		OrbitDroppedItemsAngle += OrbitDroppedItemsDeltaTime * OrbitDroppedItemsSpeedValue
+		for OrbitDroppedItemsIndex, OrbitDroppedItemsObject in ipairs(OrbitDroppedItemsList) do
+			local OrbitDroppedItemsObjectAngle = OrbitDroppedItemsAngle + ((OrbitDroppedItemsIndex - 1) / OrbitDroppedItemsCount) * math.pi * 2
+			local OrbitDroppedItemsOffset = Vector3.new(
+				math.cos(OrbitDroppedItemsObjectAngle) * OrbitDroppedItemsDistanceValue,
+				OrbitDroppedItemsHeightValue,
+				math.sin(OrbitDroppedItemsObjectAngle) * OrbitDroppedItemsDistanceValue
+			)
+			local OrbitDroppedItemsPosition = OrbitDroppedItemsHumanoidRootPart.Position + OrbitDroppedItemsOffset
+			if OrbitDroppedItemsObject:IsA("Model") then
+				OrbitDroppedItemsObject:PivotTo(CFrame.new(OrbitDroppedItemsPosition))
+			else
+				OrbitDroppedItemsObject.CFrame = CFrame.new(OrbitDroppedItemsPosition)
+			end
+		end
+	end)
+end)
+
+
+Toggles.BypassNoise:OnChanged(function(value)
+	for i = #Connections, 1, -1 do
+		local existingConnection = Connections[i]
+		if existingConnection and existingConnection.Disconnect then
+			existingConnection:Disconnect()
+		end
+		table.remove(Connections, i)
+	end
+
+	if not value then return end
+
+	local function checkBypassNoiseTvStand(targetTvStand)
+		if not targetTvStand:IsA("Model") then return end
+		if targetTvStand.Name ~= "TV_Stand" then return end
+
+		local tvStandCurrentCFrame = targetTvStand:GetPivot()
+
+		if tvStandCurrentCFrame.Position.Y > -119 then
+			targetTvStand:PivotTo(CFrame.new(
+				tvStandCurrentCFrame.Position.X,
+				-120,
+				tvStandCurrentCFrame.Position.Z
+			))
+		end
+	end
+
+	local bypassNoiseMiscFolder = workspace:FindFirstChild("Misc")
+	if not bypassNoiseMiscFolder then return end
+
+	local bypassNoiseMiscChildAddedConnection = bypassNoiseMiscFolder.ChildAdded:Connect(function(bypassNoiseNewChild)
+		checkBypassNoiseTvStand(bypassNoiseNewChild)
+	end)
+
+	Connections[#Connections + 1] = bypassNoiseMiscChildAddedConnection
+
+	for _, bypassNoiseMiscChild in ipairs(bypassNoiseMiscFolder:GetChildren()) do
+		checkBypassNoiseTvStand(bypassNoiseMiscChild)
+	end
+end)
+
+Toggles.DroppedItemValue:OnChanged(function(DroppedItemValue)
+	local DroppedItemValueScreenGui = game:GetService("CoreGui"):FindFirstChild("DropsCoinCounter")
+	if not DroppedItemValue then
+		if DroppedItemValueScreenGui then DroppedItemValueScreenGui:Destroy() end
+		return
+	end
+	local DroppedItemValueWorkspaceDrops = workspace:WaitForChild("Drops")
+	if DroppedItemValueScreenGui then DroppedItemValueScreenGui:Destroy() end
+	DroppedItemValueScreenGui = Instance.new("ScreenGui")
+	DroppedItemValueScreenGui.Name = "DropsCoinCounter"
+	DroppedItemValueScreenGui.ResetOnSpawn = false
+	DroppedItemValueScreenGui.Parent = game:GetService("CoreGui")
+	local DroppedItemValueCoinText = Instance.new("TextLabel")
+	DroppedItemValueCoinText.Name = "CoinText"
+	DroppedItemValueCoinText.AnchorPoint = Vector2.new(0.5, 0)
+	DroppedItemValueCoinText.Position = UDim2.new(0.5, 0, 0.02, 0)
+	DroppedItemValueCoinText.Size = UDim2.new(0, 250, 0, 40)
+	DroppedItemValueCoinText.BackgroundTransparency = 1
+	DroppedItemValueCoinText.Text = "Items: 0"
+	DroppedItemValueCoinText.TextSize = 24
+	DroppedItemValueCoinText.Font = Enum.Font.GothamBold
+	DroppedItemValueCoinText.TextColor3 = Color3.fromRGB(255, 255, 255)
+	DroppedItemValueCoinText.TextStrokeTransparency = 0.5
+	DroppedItemValueCoinText.Parent = DroppedItemValueScreenGui
+	local DroppedItemValueCountedDrops = {}
+	task.spawn(function()
+		while Toggles.DroppedItemValue.Value do
+			for _, DroppedItemValueDrop in ipairs(DroppedItemValueWorkspaceDrops:GetChildren()) do
+				if DroppedItemValueDrop:IsA("Model") and not DroppedItemValueCountedDrops[DroppedItemValueDrop] then
+					DroppedItemValueDrop:SetAttribute("CoinsChecked", true)
+					DroppedItemValueCountedDrops[DroppedItemValueDrop] = true
+				end
+			end
+			for DroppedItemValueDrop in pairs(DroppedItemValueCountedDrops) do
+				if not DroppedItemValueDrop.Parent or DroppedItemValueDrop.Parent ~= DroppedItemValueWorkspaceDrops then
+					DroppedItemValueCountedDrops[DroppedItemValueDrop] = nil
+				end
+			end
+			local DroppedItemValueTotalItems = 0
+			for DroppedItemValueDrop in pairs(DroppedItemValueCountedDrops) do
+				if DroppedItemValueDrop.Parent == DroppedItemValueWorkspaceDrops then
+					DroppedItemValueTotalItems += 1
+				end
+			end
+			DroppedItemValueCoinText.Text = "Items: " .. DroppedItemValueTotalItems
+			task.wait(1)
+		end
+		if DroppedItemValueScreenGui and DroppedItemValueScreenGui.Parent then
+			DroppedItemValueScreenGui:Destroy()
+		end
+	end)
+end)
+
+-- hi
 
 Groupboxes.Exploits_BypassRight = Tabs.Exploits:AddRightGroupbox("Bypass")
 Groupboxes.Exploits_BypassRight:AddToggle("DisableAnticheat", {
@@ -2524,7 +4378,7 @@ Groupboxes.Exploits_BypassRight:AddToggle("VelocityManipulationToggle", {
 	Text = "Velocity Manipulation", Default = false,
 	Tooltip = "Moves your character forward slowly, mitigating the game's anti-noclip."
 })
-OnChange("DisableAnticheat", function(Value)
+Toggles.DisableAnticheat:OnChanged(function(Value)
 	if Globals.AnticheatDisabled == true and not Value then
 		RemotesFolder.ClimbLadder:FireServer()
 		Globals.AnticheatDisabled = false
@@ -2537,16 +4391,6 @@ Toggles.VelocityManipulationToggle:AddKeyPicker("VelocityManipulationKeybind", {
 Groupboxes.Exploits_BypassRight:AddDropdown("VelocityManipulationMode", {
 	Values = {"Velocity", "Pivot"}, Text = "Manipulation Method",
 	Default = 1,
-})
-Groupboxes.Exploits_BypassRight:AddSlider("VelocityManipulationSpeed", {
-	Text = "Manipulation Speed", Min = 1, Max = 20, Default = 7, Rounding = 1, Compact = true,
-})
-Groupboxes.Exploits_BypassRight:AddToggle("AntiTeleport", {
-	Text = "Anti-Teleport Spoof", Default = false,
-	Tooltip = "Server'in dogruladigi Collision parcalarini snap'lemek yerine hiz limitli takip ettirir. Noclip / teleport flag'ini zorlastirir."
-})
-Groupboxes.Exploits_BypassRight:AddSlider("AntiTeleportSpeed", {
-	Text = "Spoof Max Speed", Min = 10, Max = 200, Default = 40, Rounding = 0, Compact = true,
 })
 
 Groupboxes.Exploits_BypassRight:AddDivider()
@@ -2564,6 +4408,105 @@ Groupboxes.Exploits_BypassRight:AddDropdown("InfiniteItemsList", {
 	DisabledTooltip = Globals.IncompatibleMessage
 })
 
+Groupboxes.Exploits_BypassRight:AddToggle("InfCrucifix", {
+	Text = "Infinite Crucifix",
+	Default = false,
+	Tooltip = "Risky! You can die or lose the Crucifix. Recommended to have low ping and stable fps.",
+	Risky = Floor ~= "Ballz",
+})
+
+
+local InfCrucifixDropTable = {
+	RushMoving   = 54,
+	AmbushMoving = 67,
+	A60          = 70,
+	GlitchRush   = 120,
+	GlitchAmbush = 155,
+	A120         = 75,
+
+}
+
+
+
+Toggles.InfCrucifix:OnChanged(function(Value)
+	print("i allive")
+	local InfCrucifixRaycastParams = RaycastParams.new()
+	InfCrucifixRaycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+	local InfCrucifixConnection
+	InfCrucifixConnection = RunService.RenderStepped:Connect(function()
+		if not Toggles.InfCrucifix.Value then
+			if InfCrucifixConnection then
+				InfCrucifixConnection:Disconnect()
+			end
+			return
+		end
+
+		local InfCrucifixCharacter = game.Players.LocalPlayer
+		if not InfCrucifixCharacter then
+			return
+		end
+
+		local InfCrucifixCollision = InfCrucifixCharacter:FindFirstChild("CollisionPart")
+		if not InfCrucifixCollision then
+			return
+		end
+
+		InfCrucifixRaycastParams.FilterDescendantsInstances = {InfCrucifixCharacter}
+
+		for _, InfCrucifixEntity in ipairs(Workspace:GetChildren()) do
+			local InfCrucifixMaxDistance = InfCrucifixDropTable[InfCrucifixEntity.Name]
+			if not InfCrucifixMaxDistance or not InfCrucifixEntity.PrimaryPart then
+				continue
+			end
+
+			InfCrucifixEntity.PrimaryPart.CanCollide = true
+			InfCrucifixEntity.PrimaryPart.CanQuery = true
+
+			local InfCrucifixOrigin = InfCrucifixCollision.Position
+			local InfCrucifixDirection = InfCrucifixEntity.PrimaryPart.Position - InfCrucifixOrigin
+			local InfCrucifixRayResult = Workspace:Raycast(InfCrucifixOrigin, InfCrucifixDirection, InfCrucifixRaycastParams)
+
+			if not InfCrucifixRayResult or not InfCrucifixRayResult.Instance:IsDescendantOf(InfCrucifixEntity) then
+				continue
+			end
+
+			local InfCrucifixDistance = (InfCrucifixCollision.Position - InfCrucifixEntity.PrimaryPart.Position).Magnitude
+			if InfCrucifixDistance >= InfCrucifixMaxDistance then
+				continue
+			end
+
+			local InfCrucifixTool = InfCrucifixCharacter:FindFirstChildOfClass("Tool")
+			if not InfCrucifixTool or InfCrucifixTool.Name ~= "Crucifix" then
+				continue
+			end
+
+			task.spawn(function()
+				ReplicatedStorage.RemotesFolder.DropItem:FireServer(InfCrucifixTool)
+				task.wait(0.54)
+				print("hi")
+				local InfCrucifixDrops = Workspace:FindFirstChild("Drops")
+				if not InfCrucifixDrops then
+					return
+				end
+
+				local InfCrucifixDropped = InfCrucifixDrops:FindFirstChild("Crucifix")
+				if not InfCrucifixDropped then
+					return
+				end
+
+				local InfCrucifixPrompt = InfCrucifixDropped:FindFirstChildOfClass("ProximityPrompt")
+				if InfCrucifixPrompt then
+					fireproximityprompt(InfCrucifixPrompt)
+				end
+			end)
+			print ("hi")
+			task.wait(0.6)
+		end
+	end)
+end)
+
+
 Groupboxes.Exploits_BypassRight:AddDivider()
 Groupboxes.Exploits_BypassRight:AddToggle("PositionSpoof", {
 	Text = "Position Spoof", Default = false,
@@ -2572,7 +4515,7 @@ Groupboxes.Exploits_BypassRight:AddToggle("PositionSpoof", {
 Groupboxes.Exploits_BypassRight:AddToggle("CrouchSpoof", {
 	Text = "Crouch Spoof", Default = false, Tooltip = "Makes the game think you are always crouching."
 })
-OnChange("PositionSpoof", function(Value)
+Toggles.PositionSpoof:OnChanged(function(Value)
 	if Floor ~= "Fools" and Floor ~= "OldHotel" then
 		if Value then
 			RootPart.CFrame = RootPart.CFrame * CFrame.new(0, -2.346, 0)
@@ -2587,7 +4530,7 @@ end)
 Toggles.PositionSpoof:AddKeyPicker("PositionSpoof", {
 	Text = "Position Spoof", Default = "B", Mode = "Toggle", SyncToggleState = true
 })
-OnChange("CrouchSpoof", function(Value)
+Toggles.CrouchSpoof:OnChanged(function(Value)
 	if RemotesFolder:FindFirstChild("Crouch") then
 		RemotesFolder.Crouch:FireServer(Value and true or Functions.IsCrouching(), true)
 	end
@@ -2605,7 +4548,7 @@ Groupboxes.Exploits_Remove:AddToggle("NoHaltDamage",    { Text = "No Halt Damage
 Groupboxes.Exploits_Remove:AddToggle("NoA90Damage",     { Text = "No A-90 Damage",    Default = false, Tooltip = "Prevents 'A-90' from hurting you." })
 Groupboxes.Exploits_Remove:AddToggle("NoSurgeDamage",   { Text = "No Surge Damage",   Default = false, Tooltip = "Prevents 'Surge' from hurting you." })
 
-OnChange("NoScreechDamage", function(Value)
+Toggles.NoScreechDamage:OnChanged(function(Value)
 	if Value then
 		FakeEvents.Screech.Parent = RemotesFolder
 		FakeEvents.Screech_Real.Parent = nil
@@ -2614,7 +4557,7 @@ OnChange("NoScreechDamage", function(Value)
 		FakeEvents.Screech.Parent = nil
 	end
 end)
-OnChange("NoHaltDamage", function(Value)
+Toggles.NoHaltDamage:OnChanged(function(Value)
 	if Value then
 		FakeEvents.Shade.Parent = RemotesFolder
 		FakeEvents.Shade_Real.Parent = nil
@@ -2623,7 +4566,7 @@ OnChange("NoHaltDamage", function(Value)
 		FakeEvents.Shade.Parent = nil
 	end
 end)
-OnChange("NoA90Damage", function(Value)
+Toggles.NoA90Damage:OnChanged(function(Value)
 	if RemotesFolder:FindFirstChild("A90") then
 		if Value then
 			FakeEvents.A90.Parent = RemotesFolder
@@ -2634,7 +4577,7 @@ OnChange("NoA90Damage", function(Value)
 		end
 	end
 end)
-OnChange("NoSurgeDamage", function(Value)
+Toggles.NoSurgeDamage:OnChanged(function(Value)
 	if RemotesFolder:FindFirstChild("SurgeRemote") then
 		if Value then
 			FakeEvents.Surge.Parent = RemotesFolder
@@ -2648,26 +4591,39 @@ end)
 
 local Modules = {}
 
-OnChange("RemoveScreech", function(Value)
-	Modules.Screech.Name = Value and "Screech_Disabled" or "Screech"
-	if Modules.GlitchScreech then
-		Modules.GlitchScreech.Name = Value and "GlitchScreech_Disabled" or "GlitchScreech"
+Toggles.RemoveScreech:OnChanged(function(Value)
+	if Value then
+		task.spawn(function()
+			while Toggles.RemoveScreech.Value do
+				local Camera = workspace:FindFirstChild("Camera")
+
+				if Camera then
+					local Screech = Camera:FindFirstChild("Screech")
+
+					if Screech then
+						Screech:Destroy()
+					end
+				end
+
+				task.wait()
+			end
+		end)
 	end
 end)
-OnChange("RemoveHalt", function(Value)
+Toggles.RemoveHalt:OnChanged(function(Value)
 	Modules.Shade.Name = Value and "Shade_Disabled" or "Shade"
 end)
-OnChange("RemoveA90", function(Value)
+Toggles.RemoveA90:OnChanged(function(Value)
 	if Modules.A90 then
 		Modules.A90.Name = Value and "A90_Disabled" or "A90"
 	end
 end)
-OnChange("RemoveDread", function(Value)
+Toggles.RemoveDread:OnChanged(function(Value)
 	if Modules.Dread then
 		Modules.Dread.Name = Value and "Dread_Disabled" or "Dread"
 	end
 end)
-OnChange("RemoveSurge", function(Value)
+Toggles.RemoveSurge:OnChanged(function(Value)
 	if Globals.SurgeFrame then
 		Globals.SurgeFrame.Name = (Value and "SurgeVignette_Disabled" or "SurgeVignette")
 	end
@@ -2680,53 +4636,27 @@ Groupboxes.Exploits_Audio:AddToggle("RemoveFootstepSounds",    { Text = "Remove 
 Groupboxes.Exploits_Audio:AddToggle("RemoveJamminMusic",       { Text = "Remove Jammin Music",       Default = false, Tooltip = "Removes the music and muffle effect from the 'Jammin' modifier." })
 Groupboxes.Exploits_Audio:AddToggle("RemoveInteractingSounds", { Text = "Remove Interacting Sounds", Default = false, Tooltip = "Removes the sounds when interacting with proximity prompts." })
 
-OnChange("RemoveJamminMusic", function(Value)
-	local function Apply()
-		if not Globals.MainUI then return false end
-		local Initiator = Globals.MainUI:FindFirstChild("Initiator")
-		local MainGame = Initiator and Initiator:FindFirstChild("Main_Game")
-		local Health = MainGame and MainGame:FindFirstChild("Health")
-		local Jam = Health and Health:FindFirstChild("Jam")
-		if not Jam then return false end
+Toggles.RemoveJamminMusic:OnChanged(function(Value)
+	local Jam = Globals.MainUI.Initiator.Main_Game.Health:FindFirstChild("Jam")
+	if Jam then
 		Jam.Volume = Value and 0 or 0.45
 		Globals.JamMuffle.Enabled = LiveModifiers:FindFirstChild("Jammin") and not Value or false
-		return true
-	end
-	if not Apply() and Value then
-		task.delay(3, function()
-			if Toggles.RemoveJamminMusic and ToggleOn("RemoveJamminMusic") then Apply() end
-		end)
 	end
 end)
-OnChange("RemoveInteractingSounds", function(Value)
-	local function Apply()
-		if not Globals.MainUI then return false end
-		local Initiator = Globals.MainUI:FindFirstChild("Initiator")
-		local MainGame = Initiator and Initiator:FindFirstChild("Main_Game")
-		local PS = MainGame and MainGame:FindFirstChild("PromptService")
-		if not PS then return false end
-		local Triggered = PS:FindFirstChild("Triggered")
-		local Holding = PS:FindFirstChild("Holding")
-		local Notification = PS:FindFirstChild("Notification")
-		if Triggered then Triggered.Volume = Value and 0 or 0.04 end
-		if Holding then Holding.Volume = Value and 0 or 0.1 end
-		if Notification then Notification.Volume = Value and 0 or 0.03 end
-		local Reminder = MainGame:FindFirstChild("Reminder")
-		local Caption = Reminder and Reminder:FindFirstChild("Caption")
-		if Caption then Caption.Volume = Value and 0 or 0.1 end
-		return true
-	end
-	if not Apply() and Value then
-		task.delay(3, function()
-			if Toggles.RemoveInteractingSounds and ToggleOn("RemoveInteractingSounds") then Apply() end
-		end)
-	end
+Toggles.RemoveInteractingSounds:OnChanged(function(Value)
+	local PS = Globals.MainUI.Initiator.Main_Game.PromptService
+	PS.Triggered.Volume   = Value and 0 or 0.04
+	PS.Holding.Volume     = Value and 0 or 0.1
+	PS.Notification.Volume = Value and 0 or 0.03
+	Globals.MainUI.Initiator.Main_Game.Reminder.Caption.Volume = Value and 0 or 0.1
 end)
 
 Groupboxes.Visuals_LeftTab = Tabs.Visuals:AddLeftTabbox("Camera / Effects")
 Groupboxes.Visuals_Camera = Groupboxes.Visuals_LeftTab:AddTab("Camera")
 Groupboxes.Visuals_Camera:AddToggle("AmbientToggle", { Text = "Ambient", Default = false, Tooltip = "Changes the lighting color to the specified value." })
 Groupboxes.Visuals_Camera:AddSlider("FieldOfView", { Text = "Field of View", Min = 1, Max = 120, Default = 70, Rounding = 0 })
+Groupboxes.Visuals_Camera:AddToggle("FOVToggle", {    Text = "Custom FOV",    Default = false,    Tooltip = "Only applies the Field of View slider when enabled." })
+Toggles.FOVToggle:AddKeyPicker("FovToggle", {Text = "Custom Fov", Default = "O", Mode = "Toggle", SyncToggleState = true})
 Groupboxes.Visuals_Camera:AddDivider()
 Groupboxes.Visuals_Camera:AddToggle("RemoveCameraShake", {
 	Text = "Remove Camera Shake", Default = false, Tooltip = "Prevents the camera from shaking.",
@@ -2755,10 +4685,8 @@ Groupboxes.Visuals_Camera:AddSlider("ViewmodelOffsetY", { Text = "Y Offset", Min
 Groupboxes.Visuals_Camera:AddSlider("ViewmodelOffsetZ", { Text = "Z Offset", Min = -10, Max = 10, Default = 0, Rounding = 1, Compact = true, Disabled = not Functions.CheckCompatability({"require"}), DisabledTooltip = Globals.IncompatibleMessage })
 
 Toggles.AmbientToggle:AddColorPicker("AmbientColor", { Text = "Ambient", Default = Color3.fromRGB(255, 255, 255), Transparency = 0 })
-OnChange("AmbientToggle", function(Value)
-	-- Config yuklenirken oda henuz yoksa FindFirstChild nil doner
-	local Room = CurrentRooms and CurrentRooms:FindFirstChild(tostring(LocalPlayer:GetAttribute("CurrentRoom")))
-	local OldAmbient = Room and Room:GetAttribute("Ambient") or Services.Lighting.Ambient
+Toggles.AmbientToggle:OnChanged(function(Value)
+	local OldAmbient = CurrentRooms:FindFirstChild(tostring(LocalPlayer:GetAttribute("CurrentRoom"))):GetAttribute("Ambient")
 	Services.TweenService:Create(Services.Lighting, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {
 		Ambient = Value and Options.AmbientColor.Value or OldAmbient
 	}):Play()
@@ -2767,39 +4695,26 @@ end)
 local Main_Game
 local ClientModules
 
-OnChange("RemoveCameraBobbing", function(Value)
+Toggles.RemoveCameraBobbing:OnChanged(function(Value)
 	if Main_Game then Main_Game.spring.Speed = Value and 9e9 or 8 end
 end)
-OnChange("RemoveCameraFog", function(Value)
+Toggles.RemoveCameraFog:OnChanged(function(Value)
 	Services.Lighting.FogEnd = Value and 10000000 or Globals.OldFog
 	for _, Object in Globals.FogInstances do
 		Object.Density = Value and 0 or Object:GetAttribute("Density_Old")
 	end
 end)
-OnChange("RemoveCutscenes", function(Value)
-    local function Apply()
-        if not Globals.MainUI then return false end
-        local Initiator = Globals.MainUI:FindFirstChild("Initiator")
-        local MainGame = Initiator and Initiator:FindFirstChild("Main_Game")
-        local RemoteListener = MainGame and MainGame:FindFirstChild("RemoteListener")
-        local Cutscenes = RemoteListener and RemoteListener:FindFirstChild("Cutscenes")
-        if not Cutscenes then return false end
-        for _, Object in pairs(Cutscenes:GetChildren()) do
-            if table.find(CutsceneNames, Object.Name) and Object:IsA("ModuleScript") or table.find(CutsceneNames, Object:GetAttribute("OriginalName")) and Object:IsA("ModuleScript") then
-                Object.Name = (Value and Object.Name .. "_Disabled" or Object:GetAttribute("OriginalName"))
-            end
+Toggles.RemoveCutscenes:OnChanged(function(Value)
+    local Cutscenes = Globals.MainUI.Initiator.Main_Game.RemoteListener.Cutscenes
+    for _, Object in pairs(Cutscenes:GetChildren()) do
+        if table.find(CutsceneNames, Object.Name) and Object:IsA("ModuleScript") or table.find(CutsceneNames, Object:GetAttribute("OriginalName")) and Object:IsA("ModuleScript") then
+            Object.Name = (Value and Object.Name .. "_Disabled" or Object:GetAttribute("OriginalName"))
         end
-        for _, Object in pairs(FloorReplicated:GetChildren()) do
-            if table.find(CutsceneNames, Object.Name) and Object:IsA("ModuleScript") or table.find(CutsceneNames, Object:GetAttribute("OriginalName")) and Object:IsA("ModuleScript") then
-                Object.Name = (Value and Object.Name .. "_Disabled" or Object:GetAttribute("OriginalName"))
-            end
-        end
-        return true
     end
-    if not Apply() and Value then
-        task.delay(3, function()
-            if Toggles.RemoveCutscenes and ToggleOn("RemoveCutscenes") then Apply() end
-        end)
+    for _, Object in pairs(FloorReplicated:GetChildren()) do
+        if table.find(CutsceneNames, Object.Name) and Object:IsA("ModuleScript") or table.find(CutsceneNames, Object:GetAttribute("OriginalName")) and Object:IsA("ModuleScript") then
+            Object.Name = (Value and Object.Name .. "_Disabled" or Object:GetAttribute("OriginalName"))
+        end
     end
 end)
 
@@ -2826,11 +4741,11 @@ local function ApplyHidingTransparency(Value, SliderValue)
 	end
 end
 
-OnChange("TransparentHidingSpotsToggle", function(Value)
+Toggles.TransparentHidingSpotsToggle:OnChanged(function(Value)
 	ApplyHidingTransparency(Value, Options.TransparentHidingSpotsSlider.Value)
 end)
 Options.TransparentHidingSpotsSlider:OnChanged(function(Value)
-	ApplyHidingTransparency(ToggleOn("TransparentHidingSpotsToggle"), Value)
+	ApplyHidingTransparency(Toggles.TransparentHidingSpotsToggle.Value, Value)
 end)
 
 Groupboxes.Visuals_Effects:AddDivider()
@@ -2842,20 +4757,20 @@ Groupboxes.Visuals_Effects:AddToggle("DisableHideVignette",      { Text = "Disab
 Groupboxes.Visuals_Effects:AddToggle("DisableFiredampEffect",    { Text = "Disable Firedamp Effect",    Default = false, Tooltip = "Disables the firedamp screen effect." })
 Groupboxes.Visuals_Effects:AddToggle("DisableEntityJumpscares",  { Text = "Disable Entity Jumpscares",  Default = false, Tooltip = "Disables jumpscares from entities like Rush and Ambush." })
 
-OnChange("DisableGlitchJumpscare", function(Value)
+Toggles.DisableGlitchJumpscare:OnChanged(function(Value)
 	Modules.Glitch.Name = Value and "Glitch_Disabled" or "Glitch"
 end)
-OnChange("DisableTimothyJumpscare", function(Value)
+Toggles.DisableTimothyJumpscare:OnChanged(function(Value)
 	Modules.SpiderJumpscare.Name = Value and "SpiderJumpscare_Disabled" or "SpiderJumpscare"
 end)
-OnChange("DisableVoidJumpscare", function(Value)
+Toggles.DisableVoidJumpscare:OnChanged(function(Value)
 	if Modules.Void then Modules.Void.Name = Value and "Void_Disabled" or "Void" end
 end)
-OnChange("DisableHideVignette", function(Value)
+Toggles.DisableHideVignette:OnChanged(function(Value)
 	local Vignette = Globals.MainUI:FindFirstChild("HideVignette") or Globals.MainUI.MainFrame:FindFirstChild("HideVignette")
 	if Vignette then Vignette.Image = Value and "Disabled" or "rbxassetid://6100076320" end
 end)
-OnChange("DisableFiredampEffect", function(Value)
+Toggles.DisableFiredampEffect:OnChanged(function(Value)
 	for _, Object in CurrentRooms:GetChildren() do
 		if Value then
 			Object:SetAttribute("Firedamp", false)
@@ -2871,7 +4786,7 @@ OnChange("DisableFiredampEffect", function(Value)
 	task.wait()
 	LocalPlayer:SetAttribute("CurrentRoom", Old)
 end)
-OnChange("DisableEntityJumpscares", function(Value)
+Toggles.DisableEntityJumpscares:OnChanged(function(Value)
 	local Jumpscares = Globals.MainUI.Initiator.Main_Game.RemoteListener:FindFirstChild("Jumpscares")
 		or Globals.MainUI.Initiator.Main_Game.RemoteListener:FindFirstChild("Jumpscares_Disabled")
 	if Jumpscares then
@@ -2882,16 +4797,233 @@ OnChange("DisableEntityJumpscares", function(Value)
 	end
 end)
 
-Groupboxes.Visuals_RightTab     = Tabs.Visuals:AddRightTabbox("Entities / Settings")
+Groupboxes.Visuals_RightTab     = Tabs.Visuals:AddRightTabbox("Entities / Settings / Entity Nodes")
 Groupboxes.Visuals_Entities     = Groupboxes.Visuals_RightTab:AddTab("Entities")
 Groupboxes.Visuals_EntitySettings = Groupboxes.Visuals_RightTab:AddTab("Settings")
 
 Groupboxes.Visuals_Entities:AddDropdown("EntityList", {
 	Text = "Entity List",
-	Values = { "Rush","Ambush","Eyes","Halt","Blitz","Lookman","Gloombat Swarm","A-60","A-120","Sally","Jeff the Killer","Groundskeeper","Monument","Caws","Grampy","Honcho","Bash","Ransom","Scribbles","Drone","Alma","Fih","Teller","Portrait","Forget-Me-Not","Creak","Noise","Stem","Meld","Cobbler","AR0xMBUSH","RNIUSHCG==" },
+	Values = { "Rush","Bash","Scribbles","Teller","DronesStampede","Creak","Noise","Noise_TV","Balls","Portrait","Ambush","Eyes","Halt","Blitz","Lookman","Gloombat Swarm","A-60","A-120","Sally","Jeff the Killer","Groundskeeper","Monument","AR0xMBUSH","RNIUSHCG==" },
 	Multi = true, AllowNull = true
 })
 Groupboxes.Visuals_Entities:AddToggle("NotifyEntities",    { Text = "Notify Entities",    Default = false, Tooltip = "Sends a notification when an entity spawns." })
+Groupboxes.Visuals_Entities:AddDivider()
+Groupboxes.Visuals_Entities:AddToggle("ShowEntityPath", {
+    Text = "Show Entity Path",
+    Default = false,
+    Tooltip = "Shows the path of entitys."
+})
+
+
+-- i dont wanna hear it okay? i was sick okay let me be okay fuck u okay
+
+
+
+
+Groupboxes.Visuals_Entities:AddToggle("ShowEntityPath", {
+    Text = "Show Entity Path",
+    Default = false,
+    Tooltip = "Shows the path of entitys."
+})
+
+Groupboxes.Visuals_Entities:AddSlider("ShowEntityPathNodeTransparency", {
+    Text = "Node Transparency",
+    Default = 0,
+    Min = 0,
+    Max = 1,
+    Rounding = 2,
+    Compact = false,
+    Tooltip = "Transparency of the path nodes when shown"
+})
+
+Groupboxes.Visuals_Entities:AddSlider("ShowEntityPathLineTransparency", {
+    Text = "Line Transparency",
+    Default = 0.15,
+    Min = 0,
+    Max = 1,
+    Rounding = 2,
+    Compact = false,
+    Tooltip = "Transparency of the path lines"
+})
+
+Groupboxes.Visuals_Entities:AddSlider("ShowEntityPathLineThickness", {
+    Text = "Line Thickness",
+    Default = 0.3,
+    Min = 0.08,
+    Max = 1.2,
+    Rounding = 2
+})
+
+local ShowEntityPathLines = {}
+
+local function ShowEntityPathClearAllLines()
+    for _, ShowEntityPathRoomLines in pairs(ShowEntityPathLines) do
+        for _, ShowEntityPathLine in ipairs(ShowEntityPathRoomLines) do
+            if ShowEntityPathLine and ShowEntityPathLine.Parent then
+                ShowEntityPathLine:Destroy()
+            end
+        end
+    end
+    table.clear(ShowEntityPathLines)
+end
+
+local function ShowEntityPathCreateLine(ShowEntityPathPoint1, ShowEntityPathPoint2, ShowEntityPathTransparency, ShowEntityPathThickness, ShowEntityPathParent)
+    local ShowEntityPathDistance = (ShowEntityPathPoint1 - ShowEntityPathPoint2).Magnitude
+    if ShowEntityPathDistance < 0.05 then
+        return nil
+    end
+
+    local ShowEntityPathLinePart = Instance.new("Part")
+    ShowEntityPathLinePart.Name = "PathLine"
+    ShowEntityPathLinePart.Anchored = true
+    ShowEntityPathLinePart.CanCollide = false
+    ShowEntityPathLinePart.CanQuery = false
+    ShowEntityPathLinePart.CanTouch = false
+    ShowEntityPathLinePart.CastShadow = false
+    ShowEntityPathLinePart.Material = Enum.Material.ForceField
+    ShowEntityPathLinePart.Color = Color3.fromRGB(0, 255, 210)
+    ShowEntityPathLinePart.Transparency = ShowEntityPathTransparency
+    ShowEntityPathLinePart.Size = Vector3.new(ShowEntityPathThickness, ShowEntityPathThickness, ShowEntityPathDistance)
+    ShowEntityPathLinePart.CFrame = CFrame.lookAt(ShowEntityPathPoint1, ShowEntityPathPoint2) * CFrame.new(0, 0, -ShowEntityPathDistance / 2)
+    ShowEntityPathLinePart.Parent = ShowEntityPathParent
+    return ShowEntityPathLinePart
+end
+
+local function ShowEntityPathGetSortedNodes(ShowEntityPathNodes)
+    local ShowEntityPathSortedNodes = {}
+    for _, ShowEntityPathNode in ipairs(ShowEntityPathNodes:GetChildren()) do
+        if ShowEntityPathNode:IsA("BasePart") then
+            local ShowEntityPathNodeNumber = tonumber(ShowEntityPathNode.Name)
+            if ShowEntityPathNodeNumber then
+                table.insert(ShowEntityPathSortedNodes, {
+                    Part = ShowEntityPathNode,
+                    Number = ShowEntityPathNodeNumber
+                })
+            end
+        end
+    end
+    table.sort(ShowEntityPathSortedNodes, function(a, b)
+        return a.Number < b.Number
+    end)
+    return ShowEntityPathSortedNodes
+end
+
+local function ShowEntityPathSetNodeTransparency(ShowEntityPathTransparency)
+    for _, ShowEntityPathRoom in ipairs(workspace.CurrentRooms:GetChildren()) do
+        local ShowEntityPathNodes = ShowEntityPathRoom:FindFirstChild("PathfindNodes")
+        if ShowEntityPathNodes then
+            for _, ShowEntityPathNode in ipairs(ShowEntityPathNodes:GetChildren()) do
+                if ShowEntityPathNode:IsA("BasePart") then
+                    ShowEntityPathNode.Transparency = ShowEntityPathTransparency
+                end
+            end
+        end
+    end
+end
+
+local function ShowEntityPathSetLineTransparency(ShowEntityPathTransparency)
+    for _, ShowEntityPathRoomLines in pairs(ShowEntityPathLines) do
+        for _, ShowEntityPathLine in ipairs(ShowEntityPathRoomLines) do
+            if ShowEntityPathLine and ShowEntityPathLine.Parent then
+                ShowEntityPathLine.Transparency = ShowEntityPathTransparency
+            end
+        end
+    end
+end
+
+local function ShowEntityPathUpdateAll()
+    local ShowEntityPathShow = Toggles.ShowEntityPath.Value
+    local ShowEntityPathNodeTransparency = ShowEntityPathShow and Options.ShowEntityPathNodeTransparency.Value or 1
+    local ShowEntityPathLineTransparency = Options.ShowEntityPathLineTransparency.Value
+    local ShowEntityPathLineThickness = Options.ShowEntityPathLineThickness.Value
+
+    ShowEntityPathClearAllLines()
+
+    if not ShowEntityPathShow then
+        ShowEntityPathSetNodeTransparency(1)
+        return
+    end
+
+    ShowEntityPathSetNodeTransparency(ShowEntityPathNodeTransparency)
+
+    local ShowEntityPathValidRooms = {}
+    for _, ShowEntityPathRoom in ipairs(workspace.CurrentRooms:GetChildren()) do
+        if ShowEntityPathRoom:FindFirstChild("PathfindNodes") then
+            table.insert(ShowEntityPathValidRooms, ShowEntityPathRoom)
+        end
+    end
+
+    table.sort(ShowEntityPathValidRooms, function(a, b)
+        return (tonumber(a.Name) or 0) < (tonumber(b.Name) or 0)
+    end)
+
+    for _, ShowEntityPathRoom in ipairs(ShowEntityPathValidRooms) do
+        local ShowEntityPathNodes = ShowEntityPathRoom.PathfindNodes
+        local ShowEntityPathSortedNodes = ShowEntityPathGetSortedNodes(ShowEntityPathNodes)
+
+        if #ShowEntityPathSortedNodes > 0 then
+            local ShowEntityPathRoomLines = {}
+
+            for i = 1, #ShowEntityPathSortedNodes - 1 do
+                local ShowEntityPathFrom = ShowEntityPathSortedNodes[i].Part
+                local ShowEntityPathTo = ShowEntityPathSortedNodes[i + 1].Part
+
+                local ShowEntityPathLine = ShowEntityPathCreateLine(
+                    ShowEntityPathFrom.Position,
+                    ShowEntityPathTo.Position,
+                    ShowEntityPathLineTransparency,
+                    ShowEntityPathLineThickness,
+                    ShowEntityPathRoom
+                )
+                if ShowEntityPathLine then
+                    table.insert(ShowEntityPathRoomLines, ShowEntityPathLine)
+                end
+            end
+
+            if #ShowEntityPathRoomLines > 0 then
+                ShowEntityPathLines[ShowEntityPathRoom] = ShowEntityPathRoomLines
+            end
+        end
+    end
+end
+
+Toggles.ShowEntityPath:OnChanged(function()
+    if ShowEntityPathChildAddedConnection then
+        ShowEntityPathChildAddedConnection:Disconnect()
+        ShowEntityPathChildAddedConnection = nil
+    end
+
+    ShowEntityPathUpdateAll()
+
+    if Toggles.ShowEntityPath.Value then
+        ShowEntityPathChildAddedConnection = workspace.CurrentRooms.ChildAdded:Connect(function(ShowEntityPathRoom)
+            if ShowEntityPathRoom:WaitForChild("PathfindNodes", 5) then
+                task.wait(0.1)
+                ShowEntityPathUpdateAll()
+            end
+        end)
+    end
+end)
+
+Options.ShowEntityPathNodeTransparency:OnChanged(function()
+    if Toggles.ShowEntityPath.Value then
+        ShowEntityPathSetNodeTransparency(Options.ShowEntityPathNodeTransparency.Value)
+    end
+end)
+
+Options.ShowEntityPathLineTransparency:OnChanged(function()
+    if Toggles.ShowEntityPath.Value then
+        ShowEntityPathSetLineTransparency(Options.ShowEntityPathLineTransparency.Value)
+    end
+end)
+
+Options.ShowEntityPathLineThickness:OnChanged(function()
+    if Toggles.ShowEntityPath.Value then
+        ShowEntityPathUpdateAll()
+    end
+end)
+
+
 Groupboxes.Visuals_Entities:AddDivider()
 
 local ItemsToNotify = {}
@@ -2900,6 +5032,7 @@ for Index, Name in pairs(ItemNames) do
 		table.insert(ItemsToNotify, Name)
 	end
 end
+table.sort(ItemsToNotify)
 
 Groupboxes.Visuals_Entities:AddDropdown("NotifyItemList", {
 	Text = "Item List",
@@ -2912,19 +5045,14 @@ Groupboxes.Visuals_Entities:AddDivider()
 Groupboxes.Visuals_Entities:AddToggle("NotifyLibraryCode", { Text = "Notify Library Code", Default = false, Tooltip = "Automatically solves the code for the library padlock." })
 Groupboxes.Visuals_Entities:AddToggle("NotifyOxygen",      { Text = "Notify Oxygen Level", Default = false, Tooltip = "Shows how much oxygen you have remaining." })
 Groupboxes.Visuals_Entities:AddToggle("NotifyHasteTime",   { Text = "Notify Haste Time",   Default = false, Tooltip = "Shows how much time you have remaining before 'Haste' spawns." })
-Groupboxes.Visuals_Entities:AddToggle("NotifyStampedeTime",   { Text = "Notify Stampede Time",   Default = false, Tooltip = "Shows countdown to next 'Drone Stampede' in The Archives (clocks strike 5:00 / 9:00), like Haste timer." })
-Groupboxes.Visuals_Entities:AddToggle("NotifyDroneStampede",   { Text = "Notify Drone Stampede",   Default = false, Tooltip = "Warns you before a 'Drone Stampede' in The Archives. Hug side walls / hide." })
-Groupboxes.Visuals_Entities:AddSlider("DroneStampedeWarning", { Text = "Stampede Warning", Min = 5, Max = 30, Default = 10, Rounding = 0, Compact = true })
-Groupboxes.Visuals_Entities:AddToggle("NotifyDroneAtDoor", { Text = "Notify Drone at Door", Default = false, Tooltip = "Warns when stationary 'Drones' are waiting right behind the next door." })
-Groupboxes.Visuals_Entities:AddSlider("DroneDoorDistance", { Text = "Door Check Distance", Min = 5, Max = 40, Default = 15, Rounding = 0, Compact = true })
 
 Globals.LibraryCodeFound = false
-OnChange("NotifyLibraryCode", function(Value)
+Toggles.NotifyLibraryCode:OnChanged(function(Value)
 	if Value then
 		local Code = Functions.GetLibraryCode()
 		if Code and not Code:find("_") and not Globals.LibraryCodeFound and CurrentRooms:FindFirstChild("50") then
 			local Lock = Services.Workspace:FindFirstChild("Padlock", true)
-			Functions.Notify({ Title = "Padlock code found!", Body = "The code is: '" .. Code .. "'", Time = ToggleOn("NotifyKeepNotifications") and Lock or 15 })
+			Functions.Notify({ Title = "Padlock code found!", Body = "The code is: '" .. Code .. "'", Time = Toggles.NotifyKeepNotifications.Value and Lock or 15 })
 			Globals.LibraryCodeFound = true
 		end
 	end
@@ -2971,6 +5099,14 @@ Groupboxes.Visuals_ESP_Toggles:AddToggle("ObjectiveESPToggle", { Text = "Objecti
 Toggles.ObjectiveESPToggle:AddColorPicker("ObjectiveESPColor", { Text = "Objectives", Default = Color3.fromRGB(0, 255, 0), Transparency = 0 })
 
 local ObjectiveLabels = {
+	["StairwellLockpickDoor"]  = "Garage Door",
+	["Mirror"]				   = "Mirror",
+	["ShoppingCart"]		   = "Shopping Cart",
+	["StairwellFireAlarm"]     = "Fire Alarm",
+	["StairwellScrapper"]	   = "Scrapper",
+	["ArchivesPackageDeposit"] = "BoxDeposit",
+	["Cellar"] 				   = "Cellar",
+	["ArchivesFihTank"]        = "Fih Tank",
 	["KeyObtain"]              = "Door Key",
 	["ElectricalKeyObtain"]    = "Electrical Key",
 	["MinesGenerator"]         = "Generator",
@@ -2983,10 +5119,9 @@ local ObjectiveLabels = {
 	["LeverForGate"]           = "Gate Lever",
 	["MinesGateButton"]        = "Gate Button",
 	["GardenGateButton"]       = "Gate Button",
-	["RiftSpawn"]              = "Rift",
 }
 
-OnChange("ObjectiveESPToggle", function(Value)
+Toggles.ObjectiveESPToggle:OnChanged(function(Value)
 	for _, Object in Objects.Objectives do
 		if Value then
 			local Label = ObjectiveLabels[Object.Name]
@@ -2995,10 +5130,7 @@ OnChange("ObjectiveESPToggle", function(Value)
 			elseif Object.Name == "MinesAnchor" then
 				Label = "Anchor [" .. Object:WaitForChild("Sign").TextLabel.Text .. "]"
 			elseif Object.Name == "WaterPump" then
-				Functions.AddESP({ Object = Object, Text = "Water Pump", Color = Options.ObjectiveESPColor.Value }, true)
-				if Object:FindFirstChild("Wheel") then
-					Functions.AddESP({ Object = Object.Wheel, Text = "Water Pump", Color = Options.ObjectiveESPColor.Value }, true)
-				end
+				Functions.AddESP({ Object = Object.Wheel, Text = "Water Pump", Color = Options.ObjectiveESPColor.Value }, true)
 			elseif Object.Name == "VineGuillotine" then
 				Functions.AddESP({ Object = Object.Lever, Text = "Vine Lever", Color = Options.ObjectiveESPColor.Value }, true)
 			end
@@ -3007,11 +5139,6 @@ OnChange("ObjectiveESPToggle", function(Value)
 			end
 		else
 			Functions.RemoveESP(Object)
-			if Object.Name == "WaterPump" and Object:FindFirstChild("Wheel") then
-				Functions.RemoveESP(Object.Wheel)
-			elseif Object.Name == "VineGuillotine" and Object:FindFirstChild("Lever") then
-				Functions.RemoveESP(Object.Lever)
-			end
 		end
 	end
 end)
@@ -3028,17 +5155,15 @@ Groupboxes.Visuals_ESP_Toggles:AddToggle("ChestESPToggle",      { Text = "Chests
 Groupboxes.Visuals_ESP_Toggles:AddToggle("ItemESPToggle",       { Text = "Items",        Default = false, Tooltip = "Highlights all collectable items/consumables." })
 Groupboxes.Visuals_ESP_Toggles:AddToggle("CurrencyESPToggle",   { Text = "Currency",     Default = false, Tooltip = "Highlights all currency that spawns." })
 Groupboxes.Visuals_ESP_Toggles:AddToggle("LadderESPToggle",     { Text = "Ladders",      Default = false, Tooltip = "Highlights ladders that can be used to disable the anticheat." })
+Groupboxes.Visuals_ESP_Toggles:AddToggle("MiscESPToggle",       { Text = "Misc",         Default = false, Tooltip = "Highlights miscellaneous objects that can be used to disable the anticheat." })
 Groupboxes.Visuals_ESP_Toggles:AddDivider()
 Groupboxes.Visuals_ESP_Toggles:AddDropdown("EntityESPOptions",     { 
 	Text = "Entity List",
-	Values = { "Rush","Ambush","Eyes","Dupe","Figure","Blitz","Lookman","Snare","Giggle","Gloombat Eggs","Grumble","A-60","A-120","Sally","Jeff the Killer","Groundskeeper","Mandrake Hole","Monument","Bramble","Caws","Grampy","Honcho","Bash","Ransom","Scribbles","Drone","Alma","Fih","Teller","Portrait","Forget-Me-Not","Creak","Noise","TV Stand","Stem","Meld","Cobbler","AR0xMBUSH","RNIUSHCG==","Sideroom","Banana Peel" },
+	Values = { "Rush","Bash","Scribbles","Teller","DronesStampede","Creak","Noise","Noise_TV","Balls","Portrait","Ambush","Eyes","Dupe","Figure","Blitz","Lookman","Snare","Giggle","Gloombat Eggs","Grumble","A-60","A-120","Sally","Jeff the Killer","Groundskeeper","Mandrake Hole","Monument","Bramble","AR0xMBUSH","RNIUSHCG==" },
 	Multi = true,
 	AllowNull = true
 })
 Groupboxes.Visuals_ESP_Toggles:AddToggle("EntityESPToggle",     { Text = "Entities",      Default = false, Tooltip = "Highlights all entities that spawn." })
-Groupboxes.Visuals_ESP_Toggles:AddToggle("LiveEntitiesESPToggle", { Text = "Live Entities Folder", Default = false, Tooltip = "Highlights everything inside the LiveEntities folder." })
-Groupboxes.Visuals_ESP_Toggles:AddToggle("MirrorShadowESPToggle", { Text = "Mirror Shadow", Default = false, Tooltip = "Highlights your MirrorShadow model." })
-Groupboxes.Visuals_ESP_Toggles:AddToggle("HonchoBoxESPToggle", { Text = "Honcho Boxes",  Default = false, Tooltip = "Highlights 'ArchivesStorageBox' crates whose ID matches an 'ArchivesPackageDeposit' (Honcho mail room)." })
 
 Toggles.DoorESPToggle:AddColorPicker("DoorESPColor",           { Text = "Doors",        Default = Color3.fromRGB(0, 200, 255),  Transparency = 0 })
 Toggles.HidingSpotESPToggle:AddColorPicker("HidingSpotESPColor", { Text = "Hiding Spots", Default = Color3.fromRGB(255, 170, 0),  Transparency = 0 })
@@ -3046,15 +5171,14 @@ Toggles.PlayerESPToggle:AddColorPicker("PlayerESPColor",       { Text = "Players
 Toggles.ChestESPToggle:AddColorPicker("ChestESPColor",         { Text = "Chests",       Default = Color3.fromRGB(255, 255, 0),   Transparency = 0 })
 Toggles.ItemESPToggle:AddColorPicker("ItemESPColor",           { Text = "Items",        Default = Color3.fromRGB(170, 0, 255),   Transparency = 0 })
 Toggles.CurrencyESPToggle:AddColorPicker("CurrencyESPColor",   { Text = "Currency",     Default = Color3.fromRGB(255, 255, 0),   Transparency = 0 })
-Toggles.LadderESPToggle:AddColorPicker("LadderESPColor",       { Text = "Ladders",      Default = Color3.fromRGB(255, 255, 255), Transparency = 0 })
+Toggles.LadderESPToggle:AddColorPicker("LadderESPColor",       { Text = "Ladders",      Default = Color3.fromRGB(3, 67, 71), Transparency = 0 })
+Toggles.MiscESPToggle:AddColorPicker("MiscESPColor",           { Text = "Misc",         Default = Color3.fromRGB(255, 255, 255), Transparency = 0 })
 Toggles.EntityESPToggle:AddColorPicker("EntityESPColor",       { Text = "Entities",     Default = Color3.fromRGB(255, 0, 0),     Transparency = 0 })
-Toggles.LiveEntitiesESPToggle:AddColorPicker("LiveEntitiesESPColor", { Text = "Live Entities", Default = Color3.fromRGB(255, 0, 0), Transparency = 0 })
-Toggles.HonchoBoxESPToggle:AddColorPicker("HonchoBoxESPColor", { Text = "Honcho Boxes", Default = Color3.fromRGB(0, 255, 0),     Transparency = 0 })
 
 local HidingSpotLabels = {
 	Wardrobe = "Closet", ["Backdoor_Wardrobe"] = "Closet", Toolshed = "Closet",
 	RetroWardrobe = "Closet", ["Wardrobe-FOOLS26"] = "Closet",
-	Locker_Large = "Locker", Rooms_Locker = "Locker", Rooms_Locker_Fridge = "Locker",
+	Locker_Large = "Locker", Rooms_Locker = "Hiding_Spot", Rooms_Locker_Fridge = "Locker",
 	Bed = "Bed", Double_Bed = "Double Bed", CircularVent = "Vent", Dumpster = "Dumpster"
 }
 local ChestLabels = {
@@ -3070,111 +5194,10 @@ local EntityESPLabels = {
 }
 
 local NodeEntities = {
-	Rush = true, Ambush = true, Eyes = true, Blitz = true, Lookman = true, ["A-60"] = true, ["A-120"] = true, Sally = true, ["Jeff The Killer"] = true, Monument = true, Honcho = true, Bash = true, Ransom = true, Scribbles = true, Drone = true, Alma = true, Fih = true, ["AR0xMBUSH"] = true, ["RNIUSHCG=="] = true
+	Rush = true, Bash = true, Scribbles = true, DronesStampede = true, Ambush = true, Eyes = true, Blitz = true, Lookman = true, ["A-60"] = true, ["A-120"] = true, Sally = true, ["Jeff The Killer"] = true, Monument = true, ["AR0xMBUSH"] = true, ["RNIUSHCG=="] = true
 }
 
-local LiveEntitiesSeen = setmetatable({}, { __mode = "k" })
-local LiveEntitiesFolder, LiveEntitiesConn = nil, nil
-
-local function LiveEntityLabel(Object)
-	local Known = EntityESPLabels[Object.Name]
-	if Known then return Known end
-	local Data = Entities[Object.Name]
-	if Data then return Data.Alias end
-	return Object.Name
-end
-
-local function TrackedLiveEntityModelAncestor(Object)
-	if not LiveEntitiesFolder then return false end
-	local Parent = Object.Parent
-	while Parent and Parent ~= LiveEntitiesFolder do
-		if Parent:IsA("Model") and LiveEntitiesSeen[Parent] then return true end
-		Parent = Parent.Parent
-	end
-	return false
-end
-
-local function HookLiveEntity(Object)
-	TrackCreakModel(Object)
-	if not ToggleOn("LiveEntitiesESPToggle") then return end
-	if LiveEntitiesSeen[Object] then return end
-	if not (Object:IsA("Model") or Object:IsA("BasePart")) then return end
-	if TrackedLiveEntityModelAncestor(Object) then return end
-
-	local Added = pcall(function()
-		Functions.AddESP({ Object = Object, Text = LiveEntityLabel(Object), Color = Options.LiveEntitiesESPColor.Value }, false)
-	end)
-	if not Added then return end
-	LiveEntitiesSeen[Object] = true
-	table.insert(Objects.LiveEntities, Object)
-	pcall(function()
-		Object.Destroying:Once(function()
-			LiveEntitiesSeen[Object] = nil
-			Functions.RemoveESP(Object)
-		end)
-	end)
-end
-
-local function UnhookLiveEntitiesFolder()
-	if LiveEntitiesConn then
-		pcall(function() LiveEntitiesConn:Disconnect() end)
-		local Position = table.find(Connections, LiveEntitiesConn)
-		if Position then table.remove(Connections, Position) end
-		LiveEntitiesConn = nil
-	end
-	LiveEntitiesFolder = nil
-end
-
-local function FindLiveEntitiesFolder()
-	local Folder = Services.Workspace:FindFirstChild("LiveEntities")
-	if Folder then return Folder end
-	if CurrentRooms then
-		return CurrentRooms:FindFirstChild("LiveEntities", true)
-	end
-	return nil
-end
-
-local function WatchLiveEntitiesFolder()
-	if LiveEntitiesFolder and LiveEntitiesFolder.Parent then return true end
-	UnhookLiveEntitiesFolder()
-	local Folder = FindLiveEntitiesFolder()
-	if typeof(Folder) ~= "Instance" then return false end
-	LiveEntitiesFolder = Folder
-	local Descendants = {}
-	pcall(function() Descendants = Folder:GetDescendants() end)
-	for _, Descendant in ipairs(Descendants) do
-		HookLiveEntity(Descendant)
-	end
-	LiveEntitiesConn = Folder.DescendantAdded:Connect(HookLiveEntity)
-	table.insert(Connections, LiveEntitiesConn)
-	return true
-end
-
-local function ClearLiveEntitiesESP()
-	for _, Object in ipairs(Objects.LiveEntities) do
-		pcall(function() Functions.RemoveESP(Object) end)
-		LiveEntitiesSeen[Object] = nil
-	end
-	Objects.LiveEntities = {}
-end
-
-OnChange("LiveEntitiesESPToggle", function(Value)
-	if Value then
-		if not WatchLiveEntitiesFolder() then
-			Functions.Notify({ Title = "LiveEntities bulunamadi." })
-		end
-	else
-		ClearLiveEntitiesESP()
-		UnhookLiveEntitiesFolder()
-	end
-end)
-Options.LiveEntitiesESPColor:OnChanged(function(Value)
-	for _, Object in ipairs(Objects.LiveEntities) do
-		Abysall.ESPLibrary:UpdateObjectColor(Object, Value)
-	end
-end)
-
-OnChange("DoorESPToggle", function(Value)
+Toggles.DoorESPToggle:OnChanged(function(Value)
 	for _, Object in Objects.Doors do
 		if Value then Functions.AddESP({ Object = Object, Text = "Door " .. Functions.GetDoorNumber(Object), Color = Options.DoorESPColor.Value }, true)
 		else Functions.RemoveESP(Object) end
@@ -3184,9 +5207,9 @@ Options.DoorESPColor:OnChanged(function(Value)
 	for _, Object in Objects.Doors do Abysall.ESPLibrary:UpdateObjectColor(Object, Value) end
 end)
 
-OnChange("HidingSpotESPToggle", function(Value)
+Toggles.HidingSpotESPToggle:OnChanged(function(Value)
 	for _, Object in Objects.HidingSpots do
-		local Label = HidingSpotLabels[Object.Name] or (Object.Name:find("HidingSpot") and "Hiding Spot" or nil)
+		local Label = HidingSpotLabels[Object.Name]
 		if Value and Label then Functions.AddESP({ Object = Object, Text = Label, Color = Options.HidingSpotESPColor.Value }, true)
 		elseif not Value then Functions.RemoveESP(Object) end
 	end
@@ -3195,7 +5218,7 @@ Options.HidingSpotESPColor:OnChanged(function(Value)
 	for _, Object in Objects.HidingSpots do Abysall.ESPLibrary:UpdateObjectColor(Object, Value) end
 end)
 
-OnChange("PlayerESPToggle", function(Value)
+Toggles.PlayerESPToggle:OnChanged(function(Value)
 	task.wait()
 	for _, Player in Services.Players:GetPlayers() do
 		if Player.Character and Player ~= LocalPlayer then
@@ -3215,7 +5238,7 @@ Options.PlayerESPColor:OnChanged(function(Value)
 	end
 end)
 
-OnChange("ChestESPToggle", function(Value)
+Toggles.ChestESPToggle:OnChanged(function(Value)
 	for _, Object in Objects.Chests do
 		if Value then
 			local Label
@@ -3237,7 +5260,7 @@ Options.ChestESPColor:OnChanged(function(Value)
 	for _, Object in Objects.Chests do Abysall.ESPLibrary:UpdateObjectColor(Object, Value) end
 end)
 
-OnChange("ItemESPToggle", function(Value)
+Toggles.ItemESPToggle:OnChanged(function(Value)
 	for _, Object in Objects.Items do
 		if Value then
 			local Label = ItemNames[Object.Name] or (Object.Name == "Green_Herb" and "Green Herb")
@@ -3253,7 +5276,7 @@ Options.ItemESPColor:OnChanged(function(Value)
 	for _, Object in Objects.Items do Abysall.ESPLibrary:UpdateObjectColor(Object, Value) end
 end)
 
-OnChange("CurrencyESPToggle", function(Value)
+Toggles.CurrencyESPToggle:OnChanged(function(Value)
 	for _, Object in Objects.Currency do
 		if Value then
 			local Label
@@ -3272,7 +5295,7 @@ Options.CurrencyESPColor:OnChanged(function(Value)
 	for _, Object in Objects.Currency do Abysall.ESPLibrary:UpdateObjectColor(Object, Value) end
 end)
 
-OnChange("EntityESPToggle", function(Value)
+Toggles.EntityESPToggle:OnChanged(function(Value)
 	for _, Object in Objects.Entities do
 		if Value then
 			local Label = EntityESPLabels[Object.Name]
@@ -3290,7 +5313,7 @@ end)
 
 Options.EntityESPOptions:OnChanged(function(Value)
 	for _, Object in Objects.Entities do
-		if ToggleOn("EntityESPToggle") then
+		if Toggles.EntityESPToggle.Value then
 			local Label = EntityESPLabels[Object.Name]
 			if not Label and Entities[Object.Name] then Label = Entities[Object.Name].Alias end
 			if Label and Options.EntityESPOptions.Value[Label] then
@@ -3308,56 +5331,7 @@ Options.EntityESPColor:OnChanged(function(Value)
 	for _, Object in Objects.Entities do Abysall.ESPLibrary:UpdateObjectColor(Object, Value) end
 end)
 
-local function MirrorShadowName()
-	return "MirrorShadow_" .. LocalPlayer.Name
-end
-
-local function HookMirrorShadow(Model)
-	if not Model:IsA("Model") or Model.Name ~= MirrorShadowName() then return end
-	if Toggles.MirrorShadowESPToggle and ToggleOn("MirrorShadowESPToggle") then
-		Functions.AddESP({ Object = Model, Text = "Mirror Shadow", Color = Options.EntityESPColor.Value }, false)
-		Model.Destroying:Once(function()
-			if Abysall then Functions.RemoveESP(Model) end
-		end)
-	end
-end
-
-OnChange("MirrorShadowESPToggle", function(Value)
-	if Value then
-		for _, D in ipairs(Services.Workspace:GetDescendants()) do
-			if D:IsA("Model") then HookMirrorShadow(D) end
-		end
-	else
-		for _, D in ipairs(Services.Workspace:GetDescendants()) do
-			if D:IsA("Model") and D.Name == MirrorShadowName() then
-				Functions.RemoveESP(D)
-			end
-		end
-	end
-end)
-table.insert(Connections, Services.Workspace.DescendantAdded:Connect(function(Obj)
-	if Obj:IsA("Model") then HookMirrorShadow(Obj) end
-end))
-
-OnChange("HonchoBoxESPToggle", function(Value)
-	if not Globals.HonchoBoxes then return end
-	if Value then
-		Functions.SweepHonchoBoxes()
-		Functions.RefreshHonchoBoxESP()
-	else
-		for _, Entry in Globals.HonchoBoxes do
-			if Entry.Model then Functions.RemoveESP(Entry.Model) end
-		end
-	end
-end)
-Options.HonchoBoxESPColor:OnChanged(function(Value)
-	if not Globals.HonchoBoxes then return end
-	for _, Entry in Globals.HonchoBoxes do
-		if Entry.Model then Abysall.ESPLibrary:UpdateObjectColor(Entry.Model, Value) end
-	end
-end)
-
-OnChange("LadderESPToggle", function(Value)
+Toggles.LadderESPToggle:OnChanged(function(Value)
 	for _, Object in Objects.Ladders do
 		if Value then Functions.AddESP({ Object = Object, Text = "Ladder", Color = Options.LadderESPColor.Value }, true)
 		else Functions.RemoveESP(Object) end
@@ -3365,6 +5339,29 @@ OnChange("LadderESPToggle", function(Value)
 end)
 Options.LadderESPColor:OnChanged(function(Value)
 	for _, Object in Objects.Ladders do Abysall.ESPLibrary:UpdateObjectColor(Object, Value) end
+end)
+
+Toggles.MiscESPToggle:OnChanged(function(Value)
+	for _, Object in Objects.Misc do
+		if Value then
+			local Label = Object.Name
+			if Object.Name == "StairwellLockpickDoor" or Object.Name == "StiarwellLockpickDoor" then
+				Label = "Garage Door"
+			elseif Object.Name == "StairwellFireAlarm" then
+				Label = "Fire Alarm"
+			elseif Object.Name == "ShoppingCart" then
+				Label = "Shopping Cart"
+			elseif Object.Name == "ArchivesFihTank" or Object.Name == "ArchivesFishTank" then
+				Label = "Fish Tank"
+			end
+			Functions.AddESP({ Object = Object, Text = Label, Color = Options.MiscESPColor.Value }, true)
+		else
+			Functions.RemoveESP(Object)
+		end
+	end
+end)
+Options.MiscESPColor:OnChanged(function(Value)
+	for _, Object in Objects.Misc do Abysall.ESPLibrary:UpdateObjectColor(Object, Value) end
 end)
 
 Groupboxes.Visuals_ESP_Settings:AddToggle("ESPRainbow",     { Text = "Rainbow Effect", Default = false, Tooltip = "Makes the esp objects change colour like a rainbow." })
@@ -3407,8 +5404,8 @@ Abysall.ESPLibrary:SetArrows(false)
 Abysall.ESPLibrary:SetArrowRadius(250)
 Abysall.ESPLibrary:SetDistanceSizeRatio(0.8)
 
-OnChange("ESPRainbow", function(V)        Abysall.ESPLibrary:SetRainbow(V) end)
-OnChange("ESPShowDistance", function(V)   Abysall.ESPLibrary:SetShowDistance(V) end)
+Toggles.ESPRainbow:OnChanged(function(V)        Abysall.ESPLibrary:SetRainbow(V) end)
+Toggles.ESPShowDistance:OnChanged(function(V)   Abysall.ESPLibrary:SetShowDistance(V) end)
 Options.ESPFillTransparency:OnChanged(function(V)        Abysall.ESPLibrary:SetFillTransparency(V) end)
 Options.ESPOutlineTransparency:OnChanged(function(V)     Abysall.ESPLibrary:SetOutlineTransparency(V) end)
 Options.ESPTextTransparency:OnChanged(function(V)        Abysall.ESPLibrary:SetTextTransparency(V) end)
@@ -3417,19 +5414,168 @@ Options.ESPFadeTime:OnChanged(function(V)        Abysall.ESPLibrary:SetFadeTime(
 Options.ESPRenderLimit:OnChanged(function(V)     Abysall.ESPLibrary:SetRenderLimit(V) end)
 Options.ESPTextSize:OnChanged(function(V)        Abysall.ESPLibrary:SetTextSize(V) end)
 Options.ESPTextFont:OnChanged(function(V)        Abysall.ESPLibrary:SetFont(Enum.Font[V]) end)
-OnChange("ESPTracersToggle", function(V)   Abysall.ESPLibrary:SetTracers(V) end)
+Toggles.ESPTracersToggle:OnChanged(function(V)   Abysall.ESPLibrary:SetTracers(V) end)
 Options.ESPTracersOrigin:OnChanged(function(V)   Abysall.ESPLibrary:SetTracerOrigin(V) end)
 Options.ESPTracerThickness:OnChanged(function(V) Abysall.ESPLibrary:SetTracerSize(V) end)
-OnChange("ESPArrowsToggle", function(V)    Abysall.ESPLibrary:SetArrows(V) end)
+Toggles.ESPArrowsToggle:OnChanged(function(V)    Abysall.ESPLibrary:SetArrows(V) end)
 Options.ESPArrowsRadius:OnChanged(function(V)    Abysall.ESPLibrary:SetArrowRadius(V) end)
 
 Tabs.Floors:UpdateWarningBox({
 	Visible = true,
-	Title = "Compatability Warning",
-	Text = "Features highlighted in red do not work in the current floor.",
+	Title = "Compatability/Risk Warning",
+	Text = "Features highlighted in red are risky / dont work in the current floor.",
+})
+Groupboxes.Floors_Automation = Tabs.Floors:AddRightGroupbox("Automation")
+
+Groupboxes.Floors_Automation:AddToggle("SkipSeekMines", {
+	Text = "Skip Seek (Mines)",
+	Default = false,
+	Tooltip = "Skips the entire Seek sections.",
+	Risky = Floor ~= "Mines"
 })
 
-Groupboxes.Floors_Automation = Tabs.Floors:AddRightGroupbox("Automation")
+Toggles.SkipSeekMines:OnChanged(function(Value)
+	if Value then
+		if Floor ~= "Mines" then
+			return
+		end
+		task.spawn(function()
+			local MinesSkipSeekCurrentRooms
+
+			repeat
+				if not Toggles.SkipSeekMines.Value then
+					return
+				end
+
+				MinesSkipSeekCurrentRooms = workspace:FindFirstChild("CurrentRooms")
+				task.wait()
+			until MinesSkipSeekCurrentRooms
+
+			local MinesSkipSeekStartRoom
+
+			repeat
+				if not Toggles.SkipSeekMines.Value then
+					return
+				end
+
+				MinesSkipSeekCurrentRooms = workspace:FindFirstChild("CurrentRooms")
+
+				if MinesSkipSeekCurrentRooms then
+					MinesSkipSeekStartRoom = MinesSkipSeekCurrentRooms:FindFirstChild("42")
+				end
+
+				task.wait()
+			until MinesSkipSeekStartRoom
+
+			local MinesSkipSeekStartDoor
+
+			repeat
+				if not Toggles.SkipSeekMines.Value then
+					return
+				end
+
+				MinesSkipSeekStartDoor = MinesSkipSeekStartRoom:FindFirstChild("Door", true)
+				task.wait()
+			until MinesSkipSeekStartDoor
+
+			repeat
+				if not Toggles.SkipSeekMines.Value then
+					return
+				end
+
+				task.wait()
+			until MinesSkipSeekStartDoor:GetAttribute("Opened") == true
+
+			if Character and Character:GetAttribute("Minecarting") == true then
+				Character:SetAttribute("Minecarting", false)
+			end
+
+			for _, MinesSkipSeekRoomNumber in ipairs({
+				43, 44, 45, 46, 47, 48, 49,
+				78, 79, 80, 81, 82, 83
+			}) do
+				if not Toggles.SkipSeekMines.Value then
+					return
+				end
+
+				local MinesSkipSeekRoom
+
+				repeat
+					if not Toggles.SkipSeekMines.Value then
+						return
+					end
+
+					MinesSkipSeekCurrentRooms = workspace:FindFirstChild("CurrentRooms")
+
+					if MinesSkipSeekCurrentRooms then
+						MinesSkipSeekRoom = MinesSkipSeekCurrentRooms:FindFirstChild(
+							tostring(MinesSkipSeekRoomNumber)
+						)
+					end
+
+					task.wait()
+				until MinesSkipSeekRoom
+
+				local MinesSkipSeekDoor
+
+				repeat
+					if not Toggles.SkipSeekMines.Value then
+						return
+					end
+
+					MinesSkipSeekDoor = MinesSkipSeekRoom:FindFirstChild("Door", true)
+					task.wait()
+				until MinesSkipSeekDoor
+
+				repeat
+					if not Toggles.SkipSeekMines.Value then
+						return
+					end
+
+					if Character then
+						Character:PivotTo(MinesSkipSeekDoor:GetPivot())
+					end
+
+					task.wait()
+				until MinesSkipSeekDoor:GetAttribute("Opened") == true
+
+				if MinesSkipSeekRoomNumber == 49 or MinesSkipSeekRoomNumber == 83 then
+					if not Character then
+						return
+					end
+
+					local MinesSkipSeekVoidPivot = Character:GetPivot()
+					MinesSkipSeekVoidPivot = MinesSkipSeekVoidPivot + Vector3.new(0, -1000, 0)
+
+					task.wait(0.3)
+
+					for MinesSkipSeekVoidCount = 1, 12 do
+						Character:PivotTo(MinesSkipSeekVoidPivot)
+					end
+
+					for MinesSkipSeekVoidCount = 1, 12 do
+						Character:PivotTo(MinesSkipSeekVoidPivot)
+					end
+
+					for MinesSkipSeekVoidCount = 1, 12 do
+						Character:PivotTo(MinesSkipSeekVoidPivot)
+					end
+
+					task.wait(0.3)
+
+					for MinesSkipSeekVoidCount = 1, 6 do
+						Character:PivotTo(MinesSkipSeekVoidPivot)
+					end
+				end
+
+				if MinesSkipSeekRoomNumber == 83 then
+					return
+				end
+			end
+		end)
+	end
+end)
+
 Groupboxes.Floors_Automation:AddToggle("AutoSteerMinecart", {
 	Text = "Auto Steer Minecart", Default = false, Tooltip = "Automatically completes the minecart chase.",
 	Disabled = not Functions.CheckCompatability({"require"}), DisabledTooltip = Globals.IncompatibleMessage
@@ -3452,13 +5598,13 @@ Groupboxes.Floors_Automation:AddToggle("RoomsAutoWalkSpoofFootsteps", {
     Disabled = not Functions.CheckCompatability({"hookmetamethod", "newcclosure", "getnamecallmethod"}), DisabledTooltip = Globals.IncompatibleMessage
 })
 
-OnChange("RoomsAutoWalk", function()
+Toggles.RoomsAutoWalk:OnChanged(function()
 	for _, Object in Globals.RoomsNodesFolder:GetChildren() do
 		if Object.Name == "PathNode" then Object:Destroy() end
 	end
 end)
 Toggles.RoomsAutoWalkShowPathToggle:AddColorPicker("RoomsAutoWalkShowPathColor", { Text = "Path", Default = Color3.fromRGB(0, 255, 0), Transparency = 0 })
-OnChange("RoomsAutoWalkShowPathToggle", function(Value)
+Toggles.RoomsAutoWalkShowPathToggle:OnChanged(function(Value)
 	for _, Object in Globals.RoomsNodesFolder:GetChildren() do
 		if Object.Name == "PathNode" then Object.Transparency = Value and 0.5 or 1 end
 	end
@@ -3493,7 +5639,7 @@ Functions.RoomsAutoWalk.GetPathfindTarget = function()
 		if table.find(RoomsEntityList, Object.Name) and Object.PrimaryPart then
 			local Y = Object.PrimaryPart.Position.Y
 			if Y > -10 and Y < 150 then
-				if Object.Name == "A60" and not ToggleOn("RoomsAutoWalkIgnoreA60") or Object.Name ~= "A60" then
+				if Object.Name == "A60" and not Toggles.RoomsAutoWalkIgnoreA60.Value or Object.Name ~= "A60" then
 					return Functions.RoomsAutoWalk.GetNearestHidingSpot() or CurrentRooms[tostring(LatestRoom.Value)]:FindFirstChild("RoomExit")
 				end
 			end
@@ -3503,7 +5649,7 @@ Functions.RoomsAutoWalk.GetPathfindTarget = function()
 end
 
 Connections.RoomsAutoWalkHandler = Services.RunService.Heartbeat:Connect(function()
-	if Floor ~= "Rooms" or not ToggleOn("RoomsAutoWalk") or Globals.RoomsAutoWalkActive or not CollisionPart or LatestRoom.Value >= 1000 then return end
+	if Floor ~= "Rooms" or not Toggles.RoomsAutoWalk.Value or Globals.RoomsAutoWalkActive or not CollisionPart or LatestRoom.Value >= 1000 then return end
 	Globals.RoomsAutoWalkActive = true
 
 	local Path = Services.PathfindingService:CreatePath({
@@ -3511,8 +5657,8 @@ Connections.RoomsAutoWalkHandler = Services.RunService.Heartbeat:Connect(functio
 		AgentRadius = 1.5, AgentHeight = 1.5, Costs = { StuckPart = 8 }
 	})
 
-	if ToggleOn("RoomsAutoWalkIgnoreA60") and not ToggleOn("PositionSpoof") then
-		pcall(function() Toggles.PositionSpoof:SetValue(true) end)
+	if Toggles.RoomsAutoWalkIgnoreA60.Value and not Toggles.PositionSpoof.Value then
+		Toggles.PositionSpoof:SetValue(true)
 	end
 
 	local TargetPart = Functions.RoomsAutoWalk.GetPathfindTarget()
@@ -3563,7 +5709,7 @@ Connections.RoomsAutoWalkHandler = Services.RunService.Heartbeat:Connect(functio
 
 	for _, Waypoint in Waypoints do
 		local Block = Instance.new("Part", Globals.RoomsNodesFolder)
-		Block.Transparency = ToggleOn("RoomsAutoWalkShowPathToggle") and 0.5 or 1
+		Block.Transparency = Toggles.RoomsAutoWalkShowPathToggle.Value and 0.5 or 1
 		Block.Size = Vector3.one
 		Block.Position = Waypoint.Position
 		Block.Shape = Enum.PartType.Ball
@@ -3576,13 +5722,13 @@ Connections.RoomsAutoWalkHandler = Services.RunService.Heartbeat:Connect(functio
 
 	local Stuck = false
 	for _, Waypoint in Waypoints do
-		if Stuck or not ToggleOn("RoomsAutoWalk") then break end
+		if Stuck or not Toggles.RoomsAutoWalk.Value then break end
 
 		local Finished = false
 		local Start = tick()
 
 		local StepConnection = Services.RunService.RenderStepped:Connect(function()
-			if Stuck or not ToggleOn("RoomsAutoWalk") then Finished = true return end
+			if Stuck or not Toggles.RoomsAutoWalk.Value then Finished = true return end
 
 			local NewTarget = Functions.RoomsAutoWalk.GetPathfindTarget()
 			if NewTarget and NewTarget:FindFirstChild("HidePrompt") and not TargetPart:FindFirstChild("HidePrompt") then
@@ -3656,7 +5802,7 @@ Connections.RoomsHandler = CurrentRooms.ChildAdded:Connect(function(Room)
 			NewBeam.LightEmission = 0
 			NewBeam.Enabled = true
 
-			local Vis = ToggleOn("ShowEyestalkPathToggle") and 0 or 1
+			local Vis = Toggles.ShowEyestalkPathToggle.Value and 0 or 1
 			NewBeam.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, Vis), NumberSequenceKeypoint.new(1, Vis) })
 			NewBeam.Parent = Globals.SeekNodesFolder
 
@@ -3672,7 +5818,7 @@ Connections.RoomsHandler = CurrentRooms.ChildAdded:Connect(function(Room)
 		Room:WaitForChild("RoomExit", 9e9)
 
 		while not Room:GetAttribute("PathFound") do
-			if ToggleOn("ShowEyestalkPathToggle") then
+			if Toggles.ShowEyestalkPathToggle.Value then
 				local EyePath = game:GetService("PathfindingService"):CreatePath({
 					AgentCanJump = false, AgentCanClimb = false, WaypointSpacing = 2, AgentRadius = 1, AgentHeight = 1
 				})
@@ -3785,7 +5931,7 @@ local function UpdateBeamColor(BeamTable, Value)
 	for _, Beam in BeamTable do Beam.Color = Seq end
 end
 
-OnChange("ShowSeekPathToggle", function(V)  UpdateBeamVisibility(Objects.SeekHighlights, "ShowSeekPathColor", V) end)
+Toggles.ShowSeekPathToggle:OnChanged(function(V)  UpdateBeamVisibility(Objects.SeekHighlights, "ShowSeekPathColor", V) end)
 Options.ShowSeekPathColor:OnChanged(function(V)   UpdateBeamColor(Objects.SeekHighlights, V) end)
 
 Groupboxes.Floors_Visuals:AddToggle("ShowEyestalkPathToggle", {
@@ -3793,7 +5939,7 @@ Groupboxes.Floors_Visuals:AddToggle("ShowEyestalkPathToggle", {
 	Risky = Floor ~= "Garden"
 })
 Toggles.ShowEyestalkPathToggle:AddColorPicker("ShowEyestalkPathColor", { Text = "Eyestalk Path", Default = Color3.fromRGB(0, 255, 0), Transparency = 0 })
-OnChange("ShowEyestalkPathToggle", function(V) UpdateBeamVisibility(Objects.EyestalkHighlights, "ShowEyestalkPathColor", V) end)
+Toggles.ShowEyestalkPathToggle:OnChanged(function(V) UpdateBeamVisibility(Objects.EyestalkHighlights, "ShowEyestalkPathColor", V) end)
 Options.ShowEyestalkPathColor:OnChanged(function(V)  UpdateBeamColor(Objects.EyestalkHighlights, V) end)
 
 Groupboxes.Floors_Bypass = Tabs.Floors:AddLeftGroupbox("Bypass")
@@ -3836,6 +5982,7 @@ Groupboxes.Floors_Farming:AddToggle("KnobFarm", {
     Text = "Knob Farm",
     Default = false,
     Tooltip = "Automatically gains knobs for you, dies and revives repeatedly.",
+	Risky = Floor ~= "Ballz",
 })
 
 Groupboxes.Floors_Farming:AddButton({
@@ -3860,49 +6007,12 @@ Groupboxes.Floors_Farming:AddButton({
 })
 
 Groupboxes.Floors_Farming:AddDivider()
-Groupboxes.Floors_Farming:AddToggle("AutoGlitchFragment", {
-	Text = "Auto Glitch Fragment", Default = false,
-	Tooltip = "6 kez void'e gider, her seferinde 5 saniye bekler.",
-})
-OnChange("AutoGlitchFragment", function(Value)
-	if not Value then
-		Globals.AutoGlitchFragmentRunning = false
-		return
-	end
-	if Globals.AutoGlitchFragmentRunning then return end
-	Globals.AutoGlitchFragmentRunning = true
-	task.spawn(function()
-		local Completed = 0
-		Functions.Notify({ Title = "Glitch Fragment baslatildi (6 tur)." })
-		while Completed < 6 and ToggleOn("AutoGlitchFragment") do
-			local Model = LocalPlayer.Character or Character
-			if Model then
-				pcall(function() Model:PivotTo(CFrame.new(0, -120, 0)) end)
-				Completed += 1
-				local Waited = 0
-				while Waited < 5 and ToggleOn("AutoGlitchFragment") do
-					Waited += task.wait()
-				end
-			else
-				task.wait(1)
-			end
-		end
-		Globals.AutoGlitchFragmentRunning = false
-		pcall(function() Toggles.AutoGlitchFragment:SetValue(false) end)
-		if Completed >= 6 then
-			Functions.Notify({ Title = "Glitch Fragment bitti (6/6)." })
-		else
-			Functions.Notify({ Title = "Glitch Fragment durduruldu (" .. Completed .. "/6)." })
-		end
-	end)
-end)
-Groupboxes.Floors_Farming:AddDivider()
 Groupboxes.Floors_Farming:AddButton({
 	Text = "Start Death Farm",
 	DoubleClick = true,
 	Tooltip = "Automatically farms deaths, joining new runs.",
 	Func = function()
-		loadstring(game:HttpGet("https://raw.githubusercontent.com/arda201415/Abysall/refs/heads/main/Scripts/DeathFarm.luau"))()
+		loadstring(game:HttpGet("https://raw.githubusercontent.com/bocaj111004/Abysall/refs/heads/main/Scripts/DeathFarm.luau"))()
 	end,
 
 	Disabled = not Functions.CheckCompatability({"fireproximityprompt", "firesignal"}),
@@ -3914,7 +6024,7 @@ Groupboxes.Floors_Farming:AddButton({
 	Tooltip = "Copies the death farm loadstring to your clipboard.",
 	Func = function()
 		toclipboard([==[
-			loadstring(game:HttpGet("https://raw.githubusercontent.com/arda201415/Abysall/refs/heads/main/Scripts/DeathFarm.luau"))()
+			loadstring(game:HttpGet("https://raw.githubusercontent.com/bocaj111004/Abysall/refs/heads/main/Scripts/DeathFarm.luau"))()
 		]==])
 		Library:Notify("Loadstring has been copied to your clipboard.")
 	end,
@@ -3923,7 +6033,7 @@ Groupboxes.Floors_Farming:AddButton({
 	DisabledTooltip = Globals.ImcompatibleMessage
 })
 
-OnChange("KnobFarm", function(Value)
+Toggles.KnobFarm:OnChanged(function(Value)
     if Value then
         Functions.Notify({Title = "Please collect some gold to earn knobs.", Body = "Click 'Start Knob Farm' when you're ready."})
 	else
@@ -3934,13 +6044,13 @@ end)
 Globals.KnobFarmActive = false
 Globals.KnobFarmStarted = false
 Connections.KnobFarm = Services.RunService.Heartbeat:Connect(function()
-	if ToggleOn("KnobFarm") and Globals.KnobFarmStarted then
+	if Toggles.KnobFarm.Value and Globals.KnobFarmStarted then
 		if not Globals.KnobFarmActive then
 			Globals.KnobFarmActive = true
 			if Functions.CheckCompatability({"replicatesignal"}) then
 				Abysall.Environment.replicatesignal(LocalPlayer.Kill)
 			else
-				RemotesFolder.Underwater:FireServer(true)
+				LocalPlayer.Character.Humanoid.Health = 0
 			end
 			while task.wait() do
 				if LocalPlayer:GetAttribute("Alive") then
@@ -3963,18 +6073,18 @@ if Functions.CheckCompatability({"hookmetamethod", "newcclosure", "getnamecallme
 			local Method = Abysall.Environment.getnamecallmethod()
 
 			if Self.Name == "Crouch" and Method == "FireServer" then
-				if ToggleOn("CrouchSpoof") or ToggleOn("PositionSpoof") then
+				if Toggles.CrouchSpoof.Value or Toggles.PositionSpoof.Value then
 					Args[1] = true
 				end
 				Args[2] = true
 			end
 
-			if Self.Name == "ClutchHeartbeat" and Method == "FireServer" and ToggleOn("AutoHeartbeatMinigame") or Self.Name == "HideMonster" and Method == "FireServer" and ToggleOn("AutoHeartbeatMinigame") then
+			if Self.Name == "ClutchHeartbeat" and Method == "FireServer" and Toggles.AutoHeartbeatMinigame.Value or Self.Name == "HideMonster" and Method == "FireServer" and Toggles.AutoHeartbeatMinigame.Value then
 				return
 			end
 
 			if Self.Name == "MotorReplication" and Method == "FireServer" then
-				local DoBypass = (ToggleOn("BypassEyes") and Globals.IsEyes) or (ToggleOn("BypassLookman") and Globals.IsLookman) or ShouldSpoofCreakLook()
+				local DoBypass = (Toggles.BypassEyes.Value and Globals.IsEyes) or (Toggles.BypassLookman.Value and Globals.IsLookman)
 				if DoBypass then
 					if Floor == "Fools" or Floor == "OldHotel" then
 						Args[1] = 0 Args[2] = (Globals.SpoofOffset == 200 and 65 or -65) Args[3] = 0 Args[4] = false
@@ -3990,7 +6100,7 @@ if Functions.CheckCompatability({"hookmetamethod", "newcclosure", "getnamecallme
     OtherHook = Abysall.Environment.hookmetamethod(game, "__index", Abysall.Environment.newcclosure(function(Self, Property)
         local Real = OtherHook(Self, Property)
 
-        if Property == "MoveDirection" and Self == Humanoid and Globals.RoomsAutoWalkActive and ToggleOn("RoomsAutoWalkSpoofFootsteps") and Floor == "Rooms" and not Character:GetAttribute("Hiding") then
+        if Property == "MoveDirection" and Self == Humanoid and Globals.RoomsAutoWalkActive and Toggles.RoomsAutoWalkSpoofFootsteps.Value and Floor == "Rooms" and not Character:GetAttribute("Hiding") then
             return RootPart.CFrame.LookVector
         end
         
@@ -4075,14 +6185,14 @@ Functions.HandleCharacter = function(NewCharacter)
 	OldJump  = NewCharacter:GetAttribute("CanJump")
 	OldSlide = NewCharacter:GetAttribute("CanSlide")
 
-	if ToggleOn("EnableCharacterJump")  then Character:SetAttribute("CanJump",  true) end
-	if ToggleOn("EnableCharacterSlide") then Character:SetAttribute("CanSlide", true) end
+	if Toggles.EnableCharacterJump.Value  then Character:SetAttribute("CanJump",  true) end
+	if Toggles.EnableCharacterSlide.Value then Character:SetAttribute("CanSlide", true) end
 
 	if Functions.CheckCompatability({"require"}) then
 		Main_Game = Abysall.Environment.require(Globals.MainUI.Initiator.Main_Game)
 	end
 
-	if Main_Game and ToggleOn("RemoveCameraBobbing") then
+	if Main_Game and Toggles.RemoveCameraBobbing.Value then
 		Main_Game.spring.Speed = 9e9
 	end
 
@@ -4091,7 +6201,7 @@ Functions.HandleCharacter = function(NewCharacter)
 		local OriginalGetMoveVector = Controls.GetMoveVector
 		Globals.OriginalGetMoveVector = OriginalGetMoveVector
 		Controls.GetMoveVector = function(...)
-			if ToggleOn("AutoSteerMinecart") and Floor == "Mines" then
+			if Toggles.AutoSteerMinecart.Value and Floor == "Mines" then
 				local Node = Globals.NearestTurnNode
 				if Node and Functions.GetMinecart() then
 					local Turn = Node:GetAttribute("Turn")
@@ -4105,7 +6215,7 @@ Functions.HandleCharacter = function(NewCharacter)
 	Globals.AutoMinecartDucked = false
 	Globals.LastDuck = tick()
 	Connections.AutoSteerMinecartDuckHandler = Services.RunService.Heartbeat:Connect(function()
-		if not ToggleOn("AutoSteerMinecart") or not Functions.GetMinecart() or tick() - Globals.LastDuck < 0.1 then return end
+		if not Toggles.AutoSteerMinecart.Value or not Functions.GetMinecart() or tick() - Globals.LastDuck < 0.1 then return end
 		Globals.NearestTurnNode = Functions.GetNearestTurnNode()
 
 		if not Globals.AutoMinecartDucked and Functions.GetNearestDuckBoard() then
@@ -4131,23 +6241,23 @@ Functions.HandleCharacter = function(NewCharacter)
 	Modules.Dread           = UIModules:FindFirstChild("Dread")
 	Modules.SpiderJumpscare = UIModules.SpiderJumpscare
 
-	if ToggleOn("RemoveScreech")    then Modules.Screech.Name = "Screech_Disabled" end
-	if ToggleOn("RemoveA90") and Modules.A90   then Modules.A90.Name = "A90_Disabled" end
-	if ToggleOn("RemoveDread") and Modules.Dread then Modules.Dread.Name = "Dread_Disabled" end
-	if ToggleOn("DisableTimothyJumpscare") then Modules.SpiderJumpscare.Name = "SpiderJumpscare_Disabled" end
+	if Toggles.RemoveScreech.Value    then Modules.Screech.Name = "Screech_Disabled" print ("screech gone") end
+	if Toggles.RemoveA90.Value and Modules.A90   then Modules.A90.Name = "A90_Disabled" end
+	if Toggles.RemoveDread.Value and Modules.Dread then Modules.Dread.Name = "Dread_Disabled" end
+	if Toggles.DisableTimothyJumpscare.Value then Modules.SpiderJumpscare.Name = "SpiderJumpscare_Disabled" end
 
-	if ToggleOn("DisableHideVignette") then
+	if Toggles.DisableHideVignette.Value then
 		local Vignette = Globals.MainUI:FindFirstChild("HideVignette") or Globals.MainUI.MainFrame:FindFirstChild("HideVignette")
 		if Vignette then Vignette.Image = "Disabled" end
 	end
-	if ToggleOn("RemoveInteractingSounds") then
+	if Toggles.RemoveInteractingSounds.Value then
 		local PS = Globals.MainUI.Initiator.Main_Game.PromptService
 		PS.Triggered.Volume = 0
 		PS.Holding.Volume   = 0
 		PS.Notification.Volume = 0
 		Globals.MainUI.Initiator.Main_Game.Reminder.Caption.Volume = 0
 	end
-	if ToggleOn("DisableEntityJumpscares") then
+	if Toggles.DisableEntityJumpscares.Value then
 		local JS = Globals.MainUI.Initiator.Main_Game.RemoteListener:FindFirstChild("Jumpscares")
 		if JS then JS.Name = "Jumpscares_Disabled" end
 	end
@@ -4155,7 +6265,7 @@ Functions.HandleCharacter = function(NewCharacter)
     for _, Object in pairs(Cutscenes:GetChildren()) do
         if table.find(CutsceneNames, Object.Name) and Object:IsA("ModuleScript") then
             Object:SetAttribute("OriginalName", Object.Name)
-            if ToggleOn("RemoveCutscenes") then
+            if Toggles.RemoveCutscenes.Value then
                 Object.Name = Object.Name .. "_Disabled"
             end
         end
@@ -4163,7 +6273,7 @@ Functions.HandleCharacter = function(NewCharacter)
     for _, Object in pairs(FloorReplicated:GetChildren()) do
         if table.find(CutsceneNames, Object.Name) and Object:IsA("ModuleScript") then
             Object:SetAttribute("OriginalName", Object.Name)
-            if ToggleOn("RemoveCutscenes") then
+            if Toggles.RemoveCutscenes.Value then
                 Object.Name = Object.Name .. "_Disabled"
             end
         end
@@ -4179,36 +6289,36 @@ Functions.HandleCharacter = function(NewCharacter)
 	for _, Part in NewCharacter:GetDescendants() do
 		if Part:IsA("BasePart") then
 			PartProperties[Part] = Part.CustomPhysicalProperties
-			if ToggleOn("RemoveAcceleration") then
+			if Toggles.RemoveAcceleration.Value then
 				Part.CustomPhysicalProperties = CustomPhysics
 			end
 		end
 	end
 
 	Connections.LibraryCodeHandler1 = LocalPlayer.PlayerGui.PermUI.Hints.ChildAdded:Connect(function()
-		if ToggleOn("NotifyLibraryCode") then
+		if Toggles.NotifyLibraryCode.Value then
 			local Code = Functions.GetLibraryCode()
 			if Code and not Code:find("_") and not Globals.LibraryCodeFound then
 				local Lock = Services.Workspace:FindFirstChild("Padlock", true)
-				Functions.Notify({ Title = "Padlock code found!", Body = "The code is: '" .. Code .. "'", Time = ToggleOn("NotifyKeepNotifications") and Lock or 15 })
+				Functions.Notify({ Title = "Padlock code found!", Body = "The code is: '" .. Code .. "'", Time = Toggles.NotifyKeepNotifications.Value and Lock or 15 })
 				Globals.LibraryCodeFound = true
 			end
 		end
 	end)
 
 	Connections.LibraryCodeHandler2 = Character.ChildAdded:Connect(function(Child)
-		if (Child.Name == "LibraryHintPaper" or Child.Name == "LibraryHintPaperHard") and ToggleOn("NotifyLibraryCode") then
+		if (Child.Name == "LibraryHintPaper" or Child.Name == "LibraryHintPaperHard") and Toggles.NotifyLibraryCode.Value then
 			local Code = Functions.GetLibraryCode()
 			if Code and not Code:find("_") and not Globals.LibraryCodeFound then
 				local Lock = Services.Workspace:FindFirstChild("Padlock", true)
-				Functions.Notify({ Title = "Padlock code found!", Body = "The code is: '" .. Code .. "'", Time = ToggleOn("NotifyKeepNotifications") and Lock or 15 })
+				Functions.Notify({ Title = "Padlock code found!", Body = "The code is: '" .. Code .. "'", Time = Toggles.NotifyKeepNotifications.Value and Lock or 15 })
 				Globals.LibraryCodeFound = true
 			end
 		end
 	end)
 
 	Connections.FootstepHandler = Character.ChildAdded:Connect(function(Object)
-		if Object:IsA("Sound") and Object.Name == "Sound" and ToggleOn("RemoveFootstepSounds") then
+		if Object:IsA("Sound") and Object.Name == "Sound" and Toggles.RemoveFootstepSounds.Value then
 			Object.Volume = 0
 		end
 	end)
@@ -4216,14 +6326,14 @@ Functions.HandleCharacter = function(NewCharacter)
 	Globals.OldOxygen = Character:GetAttribute("Oxygen")
 	Connections.OxygenConnection = Character:GetAttributeChangedSignal("Oxygen"):Connect(function()
 		local NewOxy = Character:GetAttribute("Oxygen")
-		if NewOxy < Globals.OldOxygen and ToggleOn("NotifyOxygen") then
+		if NewOxy < Globals.OldOxygen and Toggles.NotifyOxygen.Value then
 			Functions.Caption(Functions.FormatOxygen(NewOxy), true)
 		end
 		Globals.OldOxygen = NewOxy
 	end)
 
 	Connections.AutoReviveHandler = LocalPlayer:GetAttributeChangedSignal("Alive"):Connect(function()
-		if LocalPlayer:GetAttribute("Alive") == false and ToggleOn("AutoRevive") then
+		if LocalPlayer:GetAttribute("Alive") == false and Toggles.AutoRevive.Value then
 			if Floor == "Fools" or Floor == "OldHotel" then
 				while LocalPlayer:GetAttribute("Alive") ~= true do
 					RemotesFolder.Revive:FireServer()
@@ -4241,7 +6351,7 @@ Functions.HandleCharacter = function(NewCharacter)
 	end)
 
 	Connections.AnticheatDisabler = Character:GetAttributeChangedSignal("Climbing"):Connect(function()
-		if Character:GetAttribute("Climbing") == true and ToggleOn("DisableAnticheat") and not Globals.AnticheatDisabled then
+		if Character:GetAttribute("Climbing") == true and Toggles.DisableAnticheat.Value and not Globals.AnticheatDisabled then
 			task.wait(0.25)
 			Character:SetAttribute("Climbing", false)
 			Functions.Notify({ Title = "Successfully disabled the anticheat.", Body = "It will be re-enabled after a cutscene or halt room." })
@@ -4291,22 +6401,22 @@ Functions.HandleCharacter = function(NewCharacter)
 
 	Connections.JumpHandler = Character:GetAttributeChangedSignal("CanJump"):Connect(function()
 		local Val = Character:GetAttribute("CanJump")
-		if ToggleOn("EnableCharacterJump") and Val ~= true or not ToggleOn("EnableCharacterJump") then
+		if Toggles.EnableCharacterJump.Value and Val ~= true or not Toggles.EnableCharacterJump.Value then
 			OldJump = Val
 		end
-		if ToggleOn("EnableCharacterJump") then Character:SetAttribute("CanJump", true) end
+		if Toggles.EnableCharacterJump.Value then Character:SetAttribute("CanJump", true) end
 	end)
 
 	Connections.SlideHandler = Character:GetAttributeChangedSignal("CanSlide"):Connect(function()
 		local Val = Character:GetAttribute("CanSlide")
-		if ToggleOn("EnableCharacterSlide") and Val ~= true or not ToggleOn("EnableCharacterSlide") then
+		if Toggles.EnableCharacterSlide.Value and Val ~= true or not Toggles.EnableCharacterSlide.Value then
 			OldSlide = Val
 		end
-		if ToggleOn("EnableCharacterSlide") then Character:SetAttribute("CanSlide", true) end
+		if Toggles.EnableCharacterSlide.Value then Character:SetAttribute("CanSlide", true) end
 	end)
 
 	Connections.InfiniteJumpsConnection1 = Services.UserInputService.InputBegan:Connect(function(Input)
-		if Input.KeyCode == Enum.KeyCode.Space and ToggleOn("InfiniteJumps") and not Globals.IsTyping then
+		if Input.KeyCode == Enum.KeyCode.Space and Toggles.InfiniteJumps.Value and not Globals.IsTyping then
 			Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
 		end
 	end)
@@ -4314,7 +6424,7 @@ Functions.HandleCharacter = function(NewCharacter)
 	local JumpButton = Globals.MainUI.MainFrame.MobileButtons:FindFirstChild("JumpButton")
 	if JumpButton then
 		Connections.InfiniteJumpsConnection2 = JumpButton.MouseButton1Down:Connect(function()
-			if ToggleOn("InfiniteJumps") then
+			if Toggles.InfiniteJumps.Value then
 				Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
 			end
 		end)
@@ -4323,35 +6433,67 @@ Functions.HandleCharacter = function(NewCharacter)
 	Globals.SpoofOffset = 0
 	Globals.LastAutoHide = tick()
 	Connections.AutoHideConnection = Services.RunService.Heartbeat:Connect(function()
-		if not ToggleOn("AutoClosetToggle") or tick() - Globals.LastAutoHide <= 0.1 then
+		if not Toggles.AutoClosetToggle.Value or tick() - Globals.LastAutoHide <= 0.1 then
 			Globals.AutoClosetActive = false
 			return
 		end
 		local Entity = Functions.GetNearestEntity(true, Options.AutoClosetEntityList.Value)
-		if Entity then
-			local Closet = Functions.GetNearestHidingSpot()
-			if Character:GetAttribute("Hiding") ~= true and Closet then
-				Globals.AutoClosetActive = true
-				Functions.ForceFirePrompt(Closet.HidePrompt)
+		local EntityNearby = Entity and LocalPlayer:DistanceFromCharacter(Entity.PrimaryPart.Position) <= (EntityDistances[Entity.Name] or 150)
+		if Character:GetAttribute("Hiding") == true then
+			Globals.AutoClosetActive = false
+			Globals.SpectateEntity = nil
+			if not EntityNearby then
+				RemotesFolder.CamLock:FireServer()
 			end
-			if Character:GetAttribute("Hiding") then
-				if ToggleOn("SpectateEntityToggle") and Entity.PrimaryPart then
-					Globals.SpectateEntity = Entity
-				end
-			end
-		elseif Character:GetAttribute("Hiding") == true then
+			Globals.LastAutoHide = tick()
+			return
+		end
+		if not Entity then
 			Globals.SpectateEntity = nil
 			Globals.AutoClosetActive = false
-			RemotesFolder.CamLock:FireServer()
-		else
+			Globals.LastAutoHide = tick()
+			return
+		end
+		if not EntityNearby then
 			Globals.SpectateEntity = nil
+			Globals.AutoClosetActive = false
+			Globals.LastAutoHide = tick()
+			return
+		end
+		local Closet = Functions.GetNearestHidingSpot()
+		if Character:GetAttribute("Hiding") ~= true and Closet then
+			local Prompt = Closet:FindFirstChild("HidePrompt")
+				or Closet:FindFirstChild("HidingPrompt")
+				or Closet:FindFirstChild("HidePrompt", true)
+				or Closet:FindFirstChild("HidingPrompt", true)
+
+			if not Prompt then
+				for _, Child in Closet:GetDescendants() do
+					if (Child:IsA("ProximityPrompt") or Child:IsA("InteractPrompt"))
+						and (Child.Name == "HidePrompt" or Child.Name == "HidingPrompt")
+					then
+						Prompt = Child
+						break
+					end
+				end
+			end
+
+			if Prompt then
+				Globals.AutoClosetActive = true
+				Functions.ForceFirePrompt(Prompt)
+			end
+		end
+		if Character:GetAttribute("Hiding") then
+			if Toggles.SpectateEntityToggle.Value and Entity.PrimaryPart then
+				Globals.SpectateEntity = Entity
+			end
 		end
 		Globals.LastAutoHide = tick()
 	end)
 
 	Globals.LastAutoAnchor = tick()
 	Connections.AutoSolveAnchorsConnection = Services.RunService.Heartbeat:Connect(function()
-		if not ToggleOn("AutoSolveAnchors") then return end
+		if not Toggles.AutoSolveAnchors.Value then return end
 		if not Globals.MainUI:FindFirstChild("AnchorHintFrame") then return end
 		if tick() - Globals.LastAutoAnchor <= 0.1 then return end
 		local Anchor = Functions.GetCurrentAnchor()
@@ -4386,17 +6528,17 @@ Functions.HandleCharacter = function(NewCharacter)
 	local MainFrame = Globals.MainUI:FindFirstChild("MainFrame")
 	if MainFrame and MainFrame:FindFirstChild("SurgeVignette") then
 		Globals.SurgeFrame = MainFrame.SurgeVignette
-		if ToggleOn("RemoveSurge") then
+		if Toggles.RemoveSurge.Value then
 			Globals.SurgeFrame.Name = "SurgeVignette_Disabled"
 		end
 	end
 
-	Connections.MainHandler = Services.RunService.RenderStepped:Connect(function(Delta)
+	Connections.MainHandler = Services.RunService.RenderStepped:Connect(function()
 		if Services.Workspace:FindFirstChild("Camera") then
 			Camera = Services.Workspace:FindFirstChild("Camera")
 		end
 
-		if ToggleOn("SpeedBoostToggle") then
+		if Toggles.SpeedBoostToggle.Value then
 			Humanoid.WalkSpeed = Functions.GetCurrentSpeed() + Options.SpeedBoostSlider.Value
 		end
 
@@ -4406,15 +6548,14 @@ Functions.HandleCharacter = function(NewCharacter)
 
 		Globals.IsEyes    = Services.Workspace:FindFirstChild("Eyes") ~= nil or Services.Workspace:FindFirstChild("Lookman") ~= nil
 		Globals.IsLookman = Services.Workspace:FindFirstChild("BackdoorLookman") ~= nil
-		Globals.IsCreak = IsCreakActive()
 
-		if ToggleOn("AmbientToggle") then
+		if Toggles.AmbientToggle.Value then
 			Services.TweenService:Create(Services.Lighting, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), { Ambient = Options.AmbientColor.Value }):Play()
 		end
 
 		if Main_Game then
-			if ToggleOn("RemoveCameraShake")     then Main_Game.csgo = CFrame.new() end
-			if ToggleOn("ViewmodelOffsetToggle") then
+			if Toggles.RemoveCameraShake.Value     then Main_Game.csgo = CFrame.new() end
+			if Toggles.ViewmodelOffsetToggle.Value then
 				Main_Game.tooloffset = Vector3.new(Options.ViewmodelOffsetX.Value, Options.ViewmodelOffsetY.Value, Options.ViewmodelOffsetZ.Value)
 			else
 				Main_Game.tooloffset = Vector3.zero
@@ -4425,6 +6566,10 @@ Functions.HandleCharacter = function(NewCharacter)
 			Globals.MainUI.Statistics.Death.Text = "Died to Abysall Hub"
 		end
 
+		if Globals.Deathing and Globals.MainUI:FindFirstChild("Statistics") then
+			Globals.MainUI.Statistics.Death.Text = "Died to Verity"
+		end
+
 		local MainFrame = Globals.MainUI:FindFirstChild("MainFrame")
 		if MainFrame then
 			local Effects = MainFrame.Healthbar:FindFirstChild("Effects")
@@ -4433,7 +6578,7 @@ Functions.HandleCharacter = function(NewCharacter)
 			end
 		end
 
-		if (ToggleOn("CrouchSpoof") or ToggleOn("PositionSpoof")) and RemotesFolder:FindFirstChild("Crouch") then
+		if (Toggles.CrouchSpoof.Value or Toggles.PositionSpoof.Value) and RemotesFolder:FindFirstChild("Crouch") then
 			RemotesFolder.Crouch:FireServer(true, true)
 		end
 
@@ -4450,78 +6595,78 @@ Functions.HandleCharacter = function(NewCharacter)
 		end
 
 		if Floor == "OldHotel" or Floor == "Fools" then
-			local SpoofOffset = ToggleOn("PositionSpoof") and Functions.GetNearestEntity() and 200 or ToggleOn("FigureGodmode") and Functions.GetNearestFigure() and 200 or 0
-		Globals.SpoofOffset = SpoofOffset
-		Functions.SmoothMove(Collision, RootPart.Position + Vector3.new(0, SpoofOffset, 0), Delta)
-		Collision.CanCollide = false
+			local SpoofOffset = Toggles.PositionSpoof.Value and Functions.GetNearestEntity() and 200 or Toggles.FigureGodmode.Value and Functions.GetNearestFigure() and 200 or 0
+			Globals.SpoofOffset = SpoofOffset
+			Collision.Position = RootPart.Position + Vector3.new(0, SpoofOffset, 0)
+			Collision.CanCollide = false
 			if Floor == "Fools" then
 				Collision.CollisionCrouch.CanCollide = false
 				CollisionClone.CollisionCrouch.CanCollide = false
 			end
-			RootPart.CanCollide = not (ToggleOn("NoclipToggle") or ToggleOn("VelocityManipulationToggle"))
+			RootPart.CanCollide = not (Toggles.NoclipToggle.Value or Toggles.VelocityManipulationToggle.Value)
 		else
 			Collision.CanCollide = false
 			if Collision:FindFirstChild("CollisionCrouch") then Collision.CollisionCrouch.CanCollide = false end
 
 			if CollisionClone:FindFirstChild("CollisionCrouch") then
 				local IsCrouch = Functions.IsCrouching()
-				CollisionClone.CanCollide = not (ToggleOn("NoclipToggle") or ToggleOn("VelocityManipulationToggle") or IsCrouch)
-				CollisionClone.CollisionCrouch.CanCollide = not (ToggleOn("NoclipToggle") or ToggleOn("VelocityManipulationToggle") or not IsCrouch)
+				CollisionClone.CanCollide = not (Toggles.NoclipToggle.Value or Toggles.VelocityManipulationToggle.Value or IsCrouch)
+				CollisionClone.CollisionCrouch.CanCollide = not (Toggles.NoclipToggle.Value or Toggles.VelocityManipulationToggle.Value or not IsCrouch)
 			else
-				RootPart.CanCollide = not (ToggleOn("NoclipToggle") or ToggleOn("VelocityManipulationToggle"))
+				RootPart.CanCollide = not (Toggles.NoclipToggle.Value or Toggles.VelocityManipulationToggle.Value)
 			end
 
 			if Character:FindFirstChild("LowerTorso") and Character.LowerTorso:FindFirstChild("Root") then
-				Character.LowerTorso.Root.C1 = Globals.OriginalC1 * CFrame.new(0, ToggleOn("PositionSpoof") and -2.346 or 0, 0)
+				Character.LowerTorso.Root.C1 = Globals.OriginalC1 * CFrame.new(0, Toggles.PositionSpoof.Value and -2.346 or 0, 0)
 			end
 
-		local SpoofY = ToggleOn("PositionSpoof") and 2.328 or 0.18
-		Functions.SmoothMove(Collision, RootPart.Position + Vector3.new(0, SpoofY, 0), Delta)
-		Functions.SmoothMove(CollisionPart, RootPart.Position + Vector3.new(0, SpoofY, 0), Delta)
+			local SpoofY = Toggles.PositionSpoof.Value and 2.328 or 0.18
+			Collision.Position     = RootPart.Position + Vector3.new(0, SpoofY, 0)
+			CollisionPart.Position = RootPart.Position + Vector3.new(0, SpoofY, 0)
 
-		if Collision:FindFirstChild("CollisionCrouch") and CollisionClone:FindFirstChild("CollisionCrouch") then
-			local CrouchY = ToggleOn("PositionSpoof") and 1.328 or -0.982
-			Functions.SmoothMove(Collision.CollisionCrouch, RootPart.Position + Vector3.new(0, CrouchY, 0), Delta)
-			CollisionClone.CollisionCrouch.CollisionGroup = Collision.CollisionCrouch.CollisionGroup
-		end
+			if Collision:FindFirstChild("CollisionCrouch") and CollisionClone:FindFirstChild("CollisionCrouch") then
+				local CrouchY = Toggles.PositionSpoof.Value and 1.328 or -0.982
+				Collision.CollisionCrouch.Position = RootPart.Position + Vector3.new(0, CrouchY, 0)
+				CollisionClone.CollisionCrouch.CollisionGroup = Collision.CollisionCrouch.CollisionGroup
+			end
 			if CollisionClone:FindFirstChild("CollisionCrouch") then
-				CollisionClone.CollisionCrouch.Position = RootPart.Position + Vector3.new(0, ToggleOn("PositionSpoof") and 0.75 or -0.982, 0)
+				CollisionClone.CollisionCrouch.Position = RootPart.Position + Vector3.new(0, Toggles.PositionSpoof.Value and 0.75 or -0.982, 0)
 			end
 		end
 
 		CollisionClone.CollisionGroup = Collision.CollisionGroup
-		CollisionClone.Position = RootPart.Position + Vector3.new(0, ToggleOn("PositionSpoof") and 1.75 or 0.18, 0)
+		CollisionClone.Position = RootPart.Position + Vector3.new(0, Toggles.PositionSpoof.Value and 1.75 or 0.18, 0)
 
-		if ToggleOn("VelocityManipulationToggle") and Options.VelocityManipulationMode.Value == "Velocity" then
+		if Toggles.VelocityManipulationToggle.Value and Options.VelocityManipulationMode.Value == "Velocity" then
 			Globals.ManipulateBody.Parent = RootPart
-			Globals.ManipulateBody.Velocity = RootPart.CFrame.LookVector * (Options.VelocityManipulationSpeed and Options.VelocityManipulationSpeed.Value or 7)
+			Globals.ManipulateBody.Velocity = RootPart.CFrame.LookVector * 2.25
 		else
 			Globals.ManipulateBody.Parent = nil
 		end
 
-		if ToggleOn("VelocityManipulationToggle") and Options.VelocityManipulationMode.Value == "Pivot" and Floor ~= "Fools" and Floor ~= "OldHotel" then
+		if Toggles.VelocityManipulationToggle.Value and Options.VelocityManipulationMode.Value == "Pivot" and Floor ~= "Fools" and Floor ~= "OldHotel" then
 			Character:PivotTo(Camera:GetPivot() * CFrame.new(0, 0, 2560))
 		end
 
-		if ToggleOn("FlyToggle") then
+		if Toggles.FlyToggle.Value then
 			Globals.FlyBody.Parent = RootPart
 			Globals.FlyBody.Velocity = Functions.GetFlyVelocity() * Options.FlySpeed.Value
 		else
 			Globals.FlyBody.Parent = nil
 		end
 
-		local DoEyesBypass = (ToggleOn("BypassEyes") and Globals.IsEyes) or (ToggleOn("BypassLookman") and Globals.IsLookman)
-		if DoEyesBypass or ShouldSpoofCreakLook() then
+		local DoEyesBypass = (Toggles.BypassEyes.Value and Globals.IsEyes) or (Toggles.BypassLookman.Value and Globals.IsLookman)
+		if DoEyesBypass then
 			if Floor == "Fools" or Floor == "OldHotel" then
-				Functions.FireMotor(0, (Globals.SpoofOffset == 200 and 65 or -65), 0, false)
+				RemotesFolder.MotorReplication:FireServer(0, (Globals.SpoofOffset == 200 and 65 or -65), 0, false)
 			else
-				Functions.FireMotor(-650)
+				RemotesFolder.MotorReplication:FireServer(-650)
 			end
 		end
 
 		if RemotesFolder:FindFirstChild("Crouch") and tick() - Globals.LastCrouchFire > 0.1 then
 			local IsCrouch = Functions.IsCrouching()
-			if ToggleOn("CrouchSpoof") or ToggleOn("PositionSpoof") then IsCrouch = true end
+			if Toggles.CrouchSpoof.Value or Toggles.PositionSpoof.Value then IsCrouch = true end
 			RemotesFolder.Crouch:FireServer(IsCrouch, true)
 			Globals.LastCrouchFire = tick()
 		end
@@ -4545,8 +6690,8 @@ Functions.HandleCharacter = function(NewCharacter)
 		local Direction = (Camera.CFrame * TPOffset).Position - Camera.CFrame.Position
 		local WallResult = Services.Workspace:Spherecast(Camera.CFrame.Position, 0.2, Direction, RayParams)
 
-		if ToggleOn("ThirdPersonToggle") then
-			if ToggleOn("ThirdPersonWallCheck") and WallResult and WallResult.Instance.CanCollide then
+		if Toggles.ThirdPersonToggle.Value then
+			if Toggles.ThirdPersonWallCheck.Value and WallResult and WallResult.Instance.CanCollide then
 				local NewPos = Camera.CFrame.Position + Direction.Unit * WallResult.Distance
 				Camera.CFrame = CFrame.new(NewPos, NewPos + Camera.CFrame.LookVector)
 			else
@@ -4555,11 +6700,11 @@ Functions.HandleCharacter = function(NewCharacter)
 		end
 
 		for _, Part in Globals.ThirdPersonParts do
-			Part.Transparency = ToggleOn("ThirdPersonToggle") and 0 or 1
-			Part.LocalTransparencyModifier = ToggleOn("ThirdPersonToggle") and 0 or 1
+			Part.Transparency = Toggles.ThirdPersonToggle.Value and 0 or 1
+			Part.LocalTransparencyModifier = Toggles.ThirdPersonToggle.Value and 0 or 1
 		end
 
-		if Globals.SpectateEntity and ToggleOn("AutoClosetToggle") and ToggleOn("SpectateEntityToggle") then
+		if Globals.SpectateEntity and Toggles.AutoClosetToggle.Value and Toggles.SpectateEntityToggle.Value then
 			local Entity = Globals.SpectateEntity
 
 			local CamPosition
@@ -4572,14 +6717,16 @@ Functions.HandleCharacter = function(NewCharacter)
 			Camera.CFrame = CamPosition
 		end
 
-		if Main_Game then
-			task.wait()
-			Main_Game.fovtarget = Options.FieldOfView.Value
-		else
-			Camera.FieldOfView = Options.FieldOfView.Value
+		if Toggles.FOVToggle.Value then
+			if Main_Game then
+				task.wait()
+				Main_Game.fovtarget = Options.FieldOfView.Value
+			else
+				Camera.FieldOfView = Options.FieldOfView.Value
+			end
 		end
 
-		if ToggleOn("RemoveClosetDelay")
+		if Toggles.RemoveClosetDelay.Value
 			and Humanoid.MoveDirection ~= Vector3.zero
 			and (CollisionPart.Anchored or RootPart.Anchored)
 			and Character:GetAttribute("AnimatingClient") ~= true
@@ -4607,14 +6754,14 @@ Functions.HandleCharacter = function(NewCharacter)
 	end)
 
 	task.wait(1)
-	if ToggleOn("PositionSpoof") and Floor ~= "Fools" and Floor ~= "OldHotel" then
+	if Toggles.PositionSpoof.Value and Floor ~= "Fools" and Floor ~= "OldHotel" then
 		RootPart.CFrame = RootPart.CFrame * CFrame.new(0, -2.346, 0)
 		Humanoid.HipHeight = 0.05
 		RemotesFolder.Crouch:FireServer(true, true)
 	end
 
 	local Jam = Globals.MainUI.Initiator.Main_Game.Health:FindFirstChild("Jam")
-	if Jam and ToggleOn("RemoveJamminMusic") then
+	if Jam and Toggles.RemoveJamminMusic.Value then
 		Jam.Volume = 0
 		Globals.JamMuffle.Enabled = false
 	end
@@ -4632,7 +6779,7 @@ Functions.HandleHidingTransparency = function(Model)
 				for _, P in Parts do
 					if P:GetAttribute("Transparency_Old") then
 						Services.TweenService:Create(P, TweenInfo.new(0.25, Enum.EasingStyle.Linear), {
-							Transparency = (Part.Value == Character and ToggleOn("TransparentHidingSpotsToggle"))
+							Transparency = (Part.Value == Character and Toggles.TransparentHidingSpotsToggle.Value)
 								and Options.TransparentHidingSpotsSlider.Value
 								or P:GetAttribute("Transparency_Old")
 						}):Play()
@@ -4650,34 +6797,18 @@ Functions.HandleHidingTransparency = function(Model)
 end
 
 Functions.HandleObject = function(Object)
-	-- Oda atamasi: eskiden her oda icin task.wait() vardi, 50+ odada obje
-	-- basina 50 frame -> kuyruk saatlerce birikiyordu. Tek geciste bak.
-	if not Object:GetAttribute("ParentRoom") then
-		local Parent = Object.Parent
-		while Parent and Parent ~= Services.Workspace do
-			local N = tonumber(Parent.Name)
-			if N and Parent.Parent == CurrentRooms then
-				Object:SetAttribute("ParentRoom", N)
-				break
-			end
-			Parent = Parent.Parent
+	for _, Room in CurrentRooms:GetChildren() do
+		if Object:IsDescendantOf(Room) then
+			Object:SetAttribute("ParentRoom", tonumber(Room.Name))
+			break
 		end
-	end
-	if not Object:GetAttribute("ParentRoom") and CurrentRooms then
-		local Found = nil
-		for _, Room in CurrentRooms:GetChildren() do
-			if Object:IsDescendantOf(Room) then
-				Found = tonumber(Room.Name)
-				break
-			end
-		end
-		if Found then Object:SetAttribute("ParentRoom", Found) end
+		task.wait()
 	end
 
 	if Object.Parent == CurrentRooms then
 		local FiredampVal = Object:GetAttribute("Firedamp")
 		Object:SetAttribute("Firedamp_Old", FiredampVal ~= nil and FiredampVal or false)
-		if ToggleOn("DisableFiredampEffect") then
+		if Toggles.DisableFiredampEffect.Value then
 			Object:SetAttribute("Firedamp", false)
 		end
 	end
@@ -4688,7 +6819,7 @@ Functions.HandleObject = function(Object)
 		task.spawn(function()
 			task.wait(0.5)
 			if Object.Parent then
-				if ToggleOn("ObjectiveESPToggle") then Functions.AddESP({ Object = Object, Text = "Door Key", Color = Options.ObjectiveESPColor.Value }, true) end
+				if Toggles.ObjectiveESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Door Key", Color = Options.ObjectiveESPColor.Value }, true) end
 				table.insert(Objects.Objectives, Object)
 			end
 		end)
@@ -4696,7 +6827,7 @@ Functions.HandleObject = function(Object)
 		task.spawn(function()
 			task.wait(0.5)
 			if Object.Parent then
-				if ToggleOn("ObjectiveESPToggle") then Functions.AddESP({ Object = Object, Text = "Electrical Key", Color = Options.ObjectiveESPColor.Value }, true) end
+				if Toggles.ObjectiveESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Electrical Key", Color = Options.ObjectiveESPColor.Value }, true) end
 				table.insert(Objects.Objectives, Object)
 			end
 		end)
@@ -4705,23 +6836,43 @@ Functions.HandleObject = function(Object)
 			task.wait(0.5)
 			if Object.Parent then
 				Object:SetAttribute("AddTime", Object.TakeTimer.TextLabel.Text == "01:00" and 60 or 30)
-				if ToggleOn("ObjectiveESPToggle") then Functions.AddESP({ Object = Object, Text = "Time Lever [+" .. Object:GetAttribute("AddTime") .. "s]", Color = Options.ObjectiveESPColor.Value }, true) end
-				local Main = Object:WaitForChild("Main", 10)
-				local Snd = Main and Main:WaitForChild("SoundToPlay", 10)
-				if Snd then
-					Snd.Played:Once(function()
-						Functions.RemoveESP(Object)
-						Functions.BlacklistESP(Object)
-					end)
-				end
+				if Toggles.ObjectiveESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Time Lever [+" .. Object:GetAttribute("AddTime") .. "s]", Color = Options.ObjectiveESPColor.Value }, true) end
+				Object:WaitForChild("Main").SoundToPlay.Played:Once(function()
+					Functions.RemoveESP(Object)
+					Functions.BlacklistESP(Object)
+				end)
 				table.insert(Objects.Objectives, Object)
 			end
 		end)
+	elseif Name == "StairwellLockpickDoor" then
+		if Toggles.MiscESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Garage Door", Color = Options.MiscESPColor.Value }, true) end
+		table.insert(Objects.Misc, Object)
+	elseif Name == "Mirror" then
+		if Toggles.MiscESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Mirror", Color = Options.MiscESPColor.Value }, true) end
+		table.insert(Objects.Misc, Object)
+	elseif Name == "StairwellFireAlarm" then
+		if Toggles.MiscESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Fire Alarm", Color = Options.MiscESPColor.Value }, true) end
+		table.insert(Objects.Misc, Object)
+	elseif Name == "ShoppingCart" then
+		if Toggles.MiscESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Shopping Cart", Color = Options.MiscESPColor.Value }, true) end
+		table.insert(Objects.Misc, Object)
+	elseif Name == "StairwellScrapper" then
+		if Toggles.ObjectiveESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Scrapper", Color = Options.ObjectiveESPColor.Value }, true) end
+		table.insert(Objects.Objectives, Object)
+	elseif Name == "ArchivesPackageDeposit" then
+		if Toggles.ObjectiveESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Package Deposit", Color = Options.ObjectiveESPColor.Value }, true) end
+		table.insert(Objects.Objectives, Object)
+	elseif Name == "Cellar" then
+		if Toggles.ObjectiveESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Cellar", Color = Options.ObjectiveESPColor.Value }, true) end
+		table.insert(Objects.Objectives, Object)
+	elseif Name == "ArchivesFihTank" then
+		if Toggles.MiscESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Fih Tank", Color = Options.MiscESPColor.Value }, true) end
+		table.insert(Objects.Misc, Object)
 	elseif Name == "LiveHintBook" then
-		if ToggleOn("ObjectiveESPToggle") then Functions.AddESP({ Object = Object, Text = "Hint Book", Color = Options.ObjectiveESPColor.Value }, true) end
+		if Toggles.ObjectiveESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Hint Book", Color = Options.ObjectiveESPColor.Value }, true) end
 		table.insert(Objects.Objectives, Object)
 	elseif Name == "LiveBreakerPolePickup" then
-		if ToggleOn("ObjectiveESPToggle") then Functions.AddESP({ Object = Object, Text = "Fuse Breaker", Color = Options.ObjectiveESPColor.Value }, true) end
+		if Toggles.ObjectiveESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Fuse Breaker", Color = Options.ObjectiveESPColor.Value }, true) end
 		for _, Child in Object:GetChildren() do
 			if Child.Name == "ActivateEventPrompt" and (Child.MaxActivationDistance == 5 or Child:GetAttribute("MaxActivationDistance_Old") == 5) then
 				Child:Destroy()
@@ -4729,133 +6880,81 @@ Functions.HandleObject = function(Object)
 		end
 		table.insert(Objects.Objectives, Object)
 	elseif Name == "LibraryHintPaper" or Name == "PickupItem" then
-		if ToggleOn("ObjectiveESPToggle") then Functions.AddESP({ Object = Object, Text = "Hint Paper", Color = Options.ObjectiveESPColor.Value }, true) end
+		if Toggles.ObjectiveESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Hint Paper", Color = Options.ObjectiveESPColor.Value }, true) end
 		table.insert(Objects.Objectives, Object)
 	elseif Name == "MinesAnchor" then
-		local Sign = Object:WaitForChild("Sign", 10)
-		local CodeText = Sign and Sign:FindFirstChild("TextLabel", true) and Sign.TextLabel.Text or "?"
-		if ToggleOn("ObjectiveESPToggle") then Functions.AddESP({ Object = Object, Text = "Anchor [" .. tostring(CodeText) .. "]", Color = Options.ObjectiveESPColor.Value }, true) end
+		if Toggles.ObjectiveESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Anchor [" .. Object:WaitForChild("Sign").TextLabel.Text .. "]", Color = Options.ObjectiveESPColor.Value }, true) end
 		Object:GetAttributeChangedSignal("Activated"):Once(function()
 			Functions.RemoveESP(Object)
 			Functions.BlacklistESP(Object)
 		end)
 		table.insert(Objects.Objectives, Object)
 	elseif Name == "WaterPump" then
-		if ToggleOn("ObjectiveESPToggle") then
-			Functions.AddESP({ Object = Object, Text = "Water Pump", Color = Options.ObjectiveESPColor.Value }, true)
-			local Wheel = Object:WaitForChild("Wheel", 5)
-			if Wheel then
-				Functions.AddESP({ Object = Wheel, Text = "Water Pump", Color = Options.ObjectiveESPColor.Value }, true)
-			end
-		end
-		local Wheel2 = Object:WaitForChild("Wheel", 10)
-		local WheelSnd = Wheel2 and Wheel2:FindFirstChild("Sound", true)
-		if WheelSnd then
-			WheelSnd.Played:Once(function()
-				Object:SetAttribute("Abysall_Completed", true)
-				Functions.RemoveESP(Object)
-				if Object:FindFirstChild("Wheel") then
-					Functions.RemoveESP(Object.Wheel)
-					Functions.BlacklistESP(Object.Wheel)
-				end
-			end)
-		end
-		table.insert(Objects.Objectives, Object)
-	elseif Name == "RiftSpawn" then
-		if ToggleOn("ObjectiveESPToggle") then Functions.AddESP({ Object = Object, Text = "Rift", Color = Options.ObjectiveESPColor.Value }, true) end
+		if Toggles.ObjectiveESPToggle.Value then Functions.AddESP({ Object = Object:WaitForChild("Wheel"), Text = "Water Pump", Color = Options.ObjectiveESPColor.Value }, true) end
+		Object:WaitForChild("Wheel").Sound.Played:Once(function()
+			Object:SetAttribute("Abysall_Completed", true)
+
+			Functions.RemoveESP(Object.Wheel)
+			Functions.BlacklistESP(Object.Wheel)
+		end)
 		table.insert(Objects.Objectives, Object)
 	elseif Name == "CringlePresent" then
-		if ToggleOn("ObjectiveESPToggle") then Functions.AddESP({ Object = Object, Text = "Present", Color = Options.ObjectiveESPColor.Value }, true) end
-		local ToolProp = Object:WaitForChild("ToolProp", 10)
-		local CringleHL = ToolProp and ToolProp:FindFirstChild("Highlight", true)
-		if CringleHL then pcall(function() CringleHL:Destroy() end) end
+		if Toggles.ObjectiveESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Present", Color = Options.ObjectiveESPColor.Value }, true) end
+		Object:WaitForChild("ToolProp").Highlight:Destroy()
 		table.insert(Objects.Objectives, Object)
 	elseif Name == "LeverForGate" then
-		if ToggleOn("ObjectiveESPToggle") then Functions.AddESP({ Object = Object, Text = "Gate Lever", Color = Options.ObjectiveESPColor.Value }, true) end
-		local LMain = Object:WaitForChild("Main", 10)
-		local LSnd = LMain and LMain:WaitForChild("SoundToPlay", 10)
-		if LSnd then
-			LSnd.Played:Once(function()
-				Functions.RemoveESP(Object)
-				Functions.BlacklistESP(Object)
-			end)
-		end
+		if Toggles.ObjectiveESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Gate Lever", Color = Options.ObjectiveESPColor.Value }, true) end
+		Object:WaitForChild("Main").SoundToPlay.Played:Once(function()
+			Functions.RemoveESP(Object)
+			Functions.BlacklistESP(Object)
+		end)
 		table.insert(Objects.Objectives, Object)
 	elseif Name == "VineGuillotine" then
-		if ToggleOn("ObjectiveESPToggle") and Object:FindFirstChild("Lever") then Functions.AddESP({ Object = Object.Lever, Text = "Vine Lever", Color = Options.ObjectiveESPColor.Value }, true) end
-		local Lever = Object:WaitForChild("Lever", 10)
-		local AEP = Lever and Lever:WaitForChild("ActivateEventPrompt", 10)
-		if AEP then
-			AEP:GetAttributeChangedSignal("Interactions"):Once(function()
-				Functions.RemoveESP(Object)
-				Functions.BlacklistESP(Object)
-			end)
-		end
+		if Toggles.ObjectiveESPToggle.Value then Functions.AddESP({ Object = Object.Lever, Text = "Vine Lever", Color = Options.ObjectiveESPColor.Value }, true) end
+		Object.Lever:WaitForChild("ActivateEventPrompt"):GetAttributeChangedSignal("Interactions"):Once(function()
+			Functions.RemoveESP(Object)
+			Functions.BlacklistESP(Object)
+		end)
 		table.insert(Objects.Objectives, Object)
 	elseif Name == "MandrakeLive" then
-		local Hole = Object:FindFirstChild("Hole")
-		if ToggleOn("ObjectiveESPToggle") and Options.EntityESPOptions.Value["Mandrake Hole"] and Hole then Functions.AddESP({ Object = Hole, Text = "Mandrake Hole", Color = Options.EntityESPColor.Value }, true) end
-		if Hole then table.insert(Objects.Entities, Hole) end
+		if Toggles.ObjectiveESPToggle.Value and Options.EntityESPOptions.Value["Mandrake Hole"] then Functions.AddESP({ Object = Object.Hole, Text = "Mandrake Hole", Color = Options.EntityESPColor.Value }, true) end
+		table.insert(Objects.Entities, Object.Hole)
 	elseif Name == "MinesGenerator" then
 		task.spawn(function()
 			task.wait(0.75)
 			if Object.Parent then
-				if ToggleOn("ObjectiveESPToggle") then Functions.AddESP({ Object = Object, Text = "Generator", Color = Options.ObjectiveESPColor.Value }, true) end
-				local Lever = Object:WaitForChild("Lever", 10)
-				local LeverSnd = Lever and Lever:FindFirstChild("Sound", true)
-				if LeverSnd then
-					LeverSnd.Played:Once(function()
-						Functions.RemoveESP(Object)
-						Functions.BlacklistESP(Object)
-					end)
-				end
+				if Toggles.ObjectiveESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Generator", Color = Options.ObjectiveESPColor.Value }, true) end
+				Object:WaitForChild("Lever").Sound.Played:Once(function()
+					Functions.RemoveESP(Object)
+					Functions.BlacklistESP(Object)
+				end)
 				table.insert(Objects.Objectives, Object)
 			end
 		end)
 	elseif Name == "FuseObtain" then
-		if ToggleOn("ObjectiveESPToggle") then Functions.AddESP({ Object = Object, Text = "Generator Fuse", Color = Options.ObjectiveESPColor.Value }, true) end
-		local Hitbox = Object:WaitForChild("Hitbox", 10)
-		local FuseModel = Hitbox and Hitbox:FindFirstChild("FuseModel", true)
-		if FuseModel then
-			FuseModel:GetPropertyChangedSignal("LocalTransparencyModifier"):Once(function()
-				Functions.RemoveESP(Object)
-				Functions.BlacklistESP(Object)
-			end)
-		end
+		if Toggles.ObjectiveESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Generator Fuse", Color = Options.ObjectiveESPColor.Value }, true) end
+		Object:WaitForChild("Hitbox").FuseModel:GetPropertyChangedSignal("LocalTransparencyModifier"):Once(function()
+			Functions.RemoveESP(Object)
+			Functions.BlacklistESP(Object)
+		end)
 		table.insert(Objects.Objectives, Object)
 	elseif Name == "MinesGateButton" then
-		if ToggleOn("ObjectiveESPToggle") then Functions.AddESP({ Object = Object, Text = "Gate Button", Color = Options.ObjectiveESPColor.Value }, true) end
-		local Gate = Object.Parent and Object.Parent:FindFirstChild("MinesGate")
-		local Open = Gate and Gate:FindFirstChild("Main", true) and Gate.Main:FindFirstChild("SoundOpen", true)
-		if Open then
-			Open.Played:Once(function()
-				Functions.RemoveESP(Object)
-				Functions.BlacklistESP(Object)
-			end)
-		end
+		if Toggles.ObjectiveESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Gate Button", Color = Options.ObjectiveESPColor.Value }, true) end
+		Object.Parent:WaitForChild("MinesGate").Main.SoundOpen.Played:Once(function()
+			Functions.RemoveESP(Object)
+			Functions.BlacklistESP(Object)
+		end)
 		table.insert(Objects.Objectives, Object)
 	elseif Name == "GardenGateButton" then
-		if ToggleOn("ObjectiveESPToggle") then Functions.AddESP({ Object = Object, Text = "Gate Button", Color = Options.ObjectiveESPColor.Value }, true) end
-		local Gate = Object.Parent and Object.Parent:FindFirstChild("GardenGate")
-		local Col = Gate and Gate:FindFirstChild("Collision", true)
-		local GateSound = Col and Col:FindFirstChild("Sound", true)
-		if GateSound then
-			GateSound.Played:Once(function()
-				Functions.RemoveESP(Object)
-				Functions.BlacklistESP(Object)
-			end)
-		end
+		if Toggles.ObjectiveESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Gate Button", Color = Options.ObjectiveESPColor.Value }, true) end
+		Object.Parent:WaitForChild("GardenGate").Collision.Sound.Played:Once(function()
+			Functions.RemoveESP(Object)
+			Functions.BlacklistESP(Object)
+		end)
 		table.insert(Objects.Objectives, Object)
-	elseif Name == "StairwellFireAlarm" then
-		local Target = Object:FindFirstChild("Switch", true) or Object
-		if ToggleOn("ObjectiveESPToggle") then Functions.AddESP({ Object = Target, Text = "Fire Alarm", Color = Options.ObjectiveESPColor.Value }, true) end
-		table.insert(Objects.Objectives, Target)
 	elseif Name == "Ladder" then
-		if ToggleOn("LadderESPToggle") then Functions.AddESP({ Object = Object, Text = "Ladder", Color = Options.LadderESPColor.Value }, true) end
+		if Toggles.LadderESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Ladder", Color = Options.LadderESPColor.Value }, true) end
 		table.insert(Objects.Ladders, Object)
-	elseif Name == "TV_Stand" then
-		if ToggleOn("EntityESPToggle") and Options.EntityESPOptions.Value["TV Stand"] then Functions.AddESP({ Object = Object, Text = "TV Stand", Color = Options.EntityESPColor.Value }, true) end
-		table.insert(Objects.Entities, Object)
 	elseif Name == "Door" and Object.Parent and tonumber(Object.Parent.Name) then
 		local DoorParts = {}
 		for _, Child in Object:GetChildren() do
@@ -4875,7 +6974,6 @@ Functions.HandleObject = function(Object)
 				HP.Transparency = 0.999
 				HP.Size = DoorPart.Size
 				HP.CanCollide = false
-				HP.Anchored = true
 				HP.CFrame = DoorPart.CFrame
 				HP.Name = "HighlightPart"
 				HP.Material = Enum.Material.Plastic
@@ -4884,27 +6982,22 @@ Functions.HandleObject = function(Object)
 				W.Part0 = HP W.Part1 = DoorPart W.Enabled = true
 			end
 			table.insert(Objects.Doors, HighlightModel)
-			if ToggleOn("DoorESPToggle") then Functions.AddESP({ Object = HighlightModel, Text = "Door " .. Functions.GetDoorNumber(Object), Color = Options.DoorESPColor.Value }, true) end
+			if Toggles.DoorESPToggle.Value then Functions.AddESP({ Object = HighlightModel, Text = "Door " .. Functions.GetDoorNumber(Object), Color = Options.DoorESPColor.Value }, true) end
 		else
-			local Root = Object:WaitForChild("Door", 10)
-			if Root then
-				local HP = Instance.new("Part", Object)
-				HP.Transparency = 0.999
-				HP.Size = Root.Size
-				HP.CanCollide = false
-				HP.Anchored = true
-				HP.CFrame = Root.CFrame
-				HP.Name = "HighlightPart"
-				HP.Material = Enum.Material.Plastic
-				HP:SetAttribute("ParentRoom", tonumber(Object.Parent.Name))
-				local W = Instance.new("WeldConstraint", HP)
-				W.Part0 = HP W.Part1 = Root W.Enabled = true
-				Instance.new("Humanoid", Object).Name = "HighlightHumanoid"
-				table.insert(Objects.Doors, HP)
-				if ToggleOn("DoorESPToggle") then Functions.AddESP({ Object = HP, Text = "Door " .. Functions.GetDoorNumber(Object), Color = Options.DoorESPColor.Value }, true) end
-			else
-				warn("[Abysall] kapi 'Door' parcasi gelmedi: " .. tostring(Object:GetFullName()))
-			end
+			local Root = Object:WaitForChild("Door", 9e9)
+			local HP = Instance.new("Part", Object)
+			HP.Transparency = 0.999
+			HP.Size = Root.Size
+			HP.CanCollide = false
+			HP.CFrame = Root.CFrame
+			HP.Name = "HighlightPart"
+			HP.Material = Enum.Material.Plastic
+			HP:SetAttribute("ParentRoom", tonumber(Object.Parent.Name))
+			local W = Instance.new("WeldConstraint", HP)
+			W.Part0 = HP W.Part1 = Root W.Enabled = true
+			Instance.new("Humanoid", Object).Name = "HighlightHumanoid"
+			table.insert(Objects.Doors, HP)
+			if Toggles.DoorESPToggle.Value then Functions.AddESP({ Object = HP, Text = "Door " .. Functions.GetDoorNumber(Object), Color = Options.DoorESPColor.Value }, true) end
 		end
 
 		local LastDoorFire = tick()
@@ -4912,23 +7005,19 @@ Functions.HandleObject = function(Object)
 			if Object:FindFirstChild("Door") and Object:FindFirstChild("ClientOpen") then
 				if LocalPlayer:DistanceFromCharacter(Object.Door.Position) < 75
 					and tick() - LastDoorFire > 0.1
-					and (ToggleOn("DoorReachToggle") or Functions.GetMinecart())
+					and (Toggles.DoorReachToggle.Value or Functions.GetMinecart())
 				then
 					Object.ClientOpen:FireServer()
 					LastDoorFire = tick()
 				end
 			end
 		end)
-		Object:WaitForChild("Door", 10)
-		local DoorInst = Object:FindFirstChild("Door")
-		if DoorInst then
-			local OpenSound = DoorInst:WaitForChild("Open", 10)
-			if OpenSound then
-				OpenSound.Played:Once(function()
-					DoorConn:Disconnect()
-				end)
-			end
-		end
+		Object.Destroying:Once(function()
+			DoorConn:Disconnect()
+		end)
+		Object:WaitForChild("Door"):WaitForChild("Open").Played:Once(function()
+			DoorConn:Disconnect()
+		end)
 		table.insert(Connections, DoorConn)
 
 	elseif Name == "PathLights" then
@@ -4965,7 +7054,7 @@ Functions.HandleObject = function(Object)
 			Beam.LightInfluence = 0
 			Beam.LightEmission = 0
 			Beam.Enabled = true
-			local Vis = ToggleOn("ShowSeekPathToggle") and 0 or 1
+			local Vis = Toggles.ShowSeekPathToggle.Value and 0 or 1
 			Beam.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, Vis), NumberSequenceKeypoint.new(1, Vis) })
 			Beam.Parent = Globals.SeekNodesFolder
 			local A0 = Instance.new("Attachment", NewNode)
@@ -4973,6 +7062,7 @@ Functions.HandleObject = function(Object)
 			Beam.Attachment0 = A0
 			Beam.Attachment1 = A1
 			table.insert(Objects.SeekHighlights, Beam)
+			Light:Destroy()
 		end
 
 		task.spawn(function()
@@ -5001,9 +7091,9 @@ Functions.HandleObject = function(Object)
 				NewBridge.Name = Abysall.ESPLibrary:GenerateRandomString()
 				NewBridge.Size = Vector3.new(NewBridge.Size.X, NewBridge.Size.Y, 11)
 				NewBridge.Parent = Object
-				NewBridge.CanCollide = ToggleOn("BypassSeekObstructions")
+				NewBridge.CanCollide = Toggles.BypassSeekObstructions.Value
 				NewBridge.Color = Color3.fromRGB(0, 255, 255)
-				NewBridge.Transparency = ToggleOn("BypassSeekObstructions") and 0 or 1
+				NewBridge.Transparency = Toggles.BypassSeekObstructions.Value and 0 or 1
 				NewBridge.Material = Enum.Material.ForceField
 				table.insert(Objects.SeekBridges, NewBridge)
 			end
@@ -5069,28 +7159,31 @@ Functions.HandleObject = function(Object)
 		Object.Name = "_EyestalkEndCutscene"
 	elseif Name == "DuckBoard" then
 		table.insert(Objects.SeekDuckBoards, Object)
-	elseif HidingSpotLabels[Name] or Name:find("HidingSpot") then
-		local HidingLabel = HidingSpotLabels[Name] or "Hiding Spot"
-		if ToggleOn("HidingSpotESPToggle") then Functions.AddESP({ Object = Object, Text = HidingLabel, Color = Options.HidingSpotESPColor.Value }, true) end
+	elseif HidingSpotLabels[Name] or string.find(string.lower(Name), "hidingspot") then
+		local Label = HidingSpotLabels[Name] or (string.find(string.lower(Name), "hidingspot") and "Hiding Spot" or nil)
+		if Label and Toggles.HidingSpotESPToggle.Value then Functions.AddESP({ Object = Object, Text = Label, Color = Options.HidingSpotESPColor.Value }, true) end
+		Functions.HandleHidingTransparency(Object)
+		table.insert(Objects.HidingSpots, Object)
+	elseif Object:FindFirstChild("HidingPrompt") or Object:FindFirstChild("HidePrompt") then
 		Functions.HandleHidingTransparency(Object)
 		table.insert(Objects.HidingSpots, Object)
 	elseif Name == "Lava" then
-		if ToggleOn("BypassKillbricks") then Object.CanTouch = false end
+		if Toggles.BypassKillbricks.Value then Object.CanTouch = false end
 		table.insert(Objects.Obstructions, Object)
 	elseif Name == "ScaryWall" then
 		for _, Part in Object:GetDescendants() do
 			if Part:IsA("BasePart") then
-				Part.CanTouch = not ToggleOn("BypassSeekingWall")
-				Part.CanCollide = not ToggleOn("BypassSeekingWall")
+				Part.CanTouch = not Toggles.BypassSeekingWall.Value
+				Part.CanCollide = not Toggles.BypassSeekingWall.Value
 
                 local Connection1 = Part:GetPropertyChangedSignal("CanTouch"):Connect(function()
-                    if Part.CanTouch == ToggleOn("BypassSeekingWall") then
-                        Part.CanTouch = not ToggleOn("BypassSeekingWall")
+                    if Part.CanTouch == Toggles.BypassSeekingWall.Value then
+                        Part.CanTouch = not Toggles.BypassSeekingWall.Value
                     end
                 end)
                 local Connection2 = Part:GetPropertyChangedSignal("CanCollide"):Connect(function()
-                    if Part.CanCollide == ToggleOn("BypassSeekingWall") then
-                        Part.CanCollide = not ToggleOn("BypassSeekingWall")
+                    if Part.CanCollide == Toggles.BypassSeekingWall.Value then
+                        Part.CanCollide = not Toggles.BypassSeekingWall.Value
                     end
                 end)
 
@@ -5100,25 +7193,25 @@ Functions.HandleObject = function(Object)
 		end
 		table.insert(Objects.Obstructions, Object)
 	elseif Name == "ChestBox" or Name == "ChestBoxLocked" then
-		if ToggleOn("ChestESPToggle") then Functions.AddESP({ Object = Object, Text = Object:GetAttribute("Locked") and "Locked Chest" or "Chest", Color = Options.ChestESPColor.Value }, true) end
+		if Toggles.ChestESPToggle.Value then Functions.AddESP({ Object = Object, Text = Object:GetAttribute("Locked") and "Locked Chest" or "Chest", Color = Options.ChestESPColor.Value }, true) end
 		table.insert(Objects.Chests, Object)
 	elseif Name == "Toolbox" or Name == "Toolbox_Locked" then
-		if ToggleOn("ChestESPToggle") then Functions.AddESP({ Object = Object, Text = Object:GetAttribute("Locked") and "Locked Toolbox" or "Toolbox", Color = Options.ChestESPColor.Value }, true) end
+		if Toggles.ChestESPToggle.Value then Functions.AddESP({ Object = Object, Text = Object:GetAttribute("Locked") and "Locked Toolbox" or "Toolbox", Color = Options.ChestESPColor.Value }, true) end
 		table.insert(Objects.Chests, Object)
 	elseif Name == "Chest_Vine" then
-		if ToggleOn("ChestESPToggle") then Functions.AddESP({ Object = Object, Text = "Vine Chest", Color = Options.ChestESPColor.Value }, true) end
+		if Toggles.ChestESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Vine Chest", Color = Options.ChestESPColor.Value }, true) end
 		table.insert(Objects.Chests, Object)
 	elseif Name == "Toolshed_Small" then
-		if ToggleOn("ChestESPToggle") then Functions.AddESP({ Object = Object, Text = "Toolshed", Color = Options.ChestESPColor.Value }, true) end
+		if Toggles.ChestESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Toolshed", Color = Options.ChestESPColor.Value }, true) end
 		table.insert(Objects.Chests, Object)
 	elseif Name == "Locker_Small_Locked" then
-		if ToggleOn("ChestESPToggle") then Functions.AddESP({ Object = Object, Text = "Locked Item Locker", Color = Options.ChestESPColor.Value }, true) end
+		if Toggles.ChestESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Locked Item Locker", Color = Options.ChestESPColor.Value }, true) end
 		table.insert(Objects.Chests, Object)
 	elseif Name == "MouseHole" then
-		if ToggleOn("ChestESPToggle") then Functions.AddESP({ Object = Object, Text = "Mouse", Color = Options.ChestESPColor.Value }, true) end
+		if Toggles.ChestESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Mouse", Color = Options.ChestESPColor.Value }, true) end
 		table.insert(Objects.Chests, Object)
-	elseif ItemNames[Name] and (Object:FindFirstChild("ModulePrompt", true) or Name == "FihFlakes" or Name == "Fihflakes" or Name == "Leftovers" or Name == "Pizza" or Name == "Briefcase" or Name == "PaperPlane" or Name == "LunchBox" or Name == "Lunch Box" or Name == "PaperCup" or Name == "Paper Cup" or Name == "WaitingTicket" or Name == "Waiting Ticket" or Name == "HoneyPot" or Name == "StairwellScrapper" or Name == "StairwellBlastDoor" or Name == "GweenSodaPack" or Name == "BottleCrate" or Name == "BrokenMonitor" or Name == "JerryCan" or Name == "ObjectScanner" or Name == "PeachCobbler" or Name == "DinkyLamp" or Name == "SalvageScrap" or Name == "CoinRoll") then
-		if ToggleOn("ItemESPToggle") then Functions.AddESP({ Object = Object, Text = ItemNames[Name], Color = Options.ItemESPColor.Value }, Object:GetAttribute("ParentRoom") ~= nil) end
+	elseif ItemNames[Name] and Object:FindFirstChild("ModulePrompt") then
+		if Toggles.ItemESPToggle.Value then Functions.AddESP({ Object = Object, Text = ItemNames[Name], Color = Options.ItemESPColor.Value }, Object:GetAttribute("ParentRoom") ~= nil) end
 		if Name == "LotusHolder" or Name == "LotusPetalPickup" then
 			Object.Handle:GetPropertyChangedSignal("LocalTransparencyModifier"):Connect(function()
 				Abysall.ESPLibrary:RemoveESP(Object)
@@ -5126,11 +7219,9 @@ Functions.HandleObject = function(Object)
 			end)
 		end
 
-		if ToggleOn("NotifyItemsToggle") and Options.NotifyItemList.Value[ItemNames[Name]] and Object.Parent and Object.Parent.Name ~= "Drops" then
-			local PP = Object.PrimaryPart
-			local Dist = (PP and Camera) and math.round(LocalPlayer:DistanceFromCharacter(PP.Position)) or "?"
-			if ToggleOn("NotifyItemsShowDistance") then
-				Functions.Notify({ Title = "Item '" .. ItemNames[Name] .. "' has spawned.", Body = "It is '" .. tostring(Dist) .. "' studs away from you." })
+		if Toggles.NotifyItemsToggle.Value and Options.NotifyItemList.Value[ItemNames[Name]] and Object.Parent.Name ~= "Drops" then
+			if Toggles.NotifyItemsShowDistance.Value then
+				Functions.Notify({ Title = "Item '" .. ItemNames[Name] .. "' has spawned.", Body = "It is '" .. math.round(LocalPlayer:DistanceFromCharacter(Object.PrimaryPart.Position)) .. "' studs away from you." })
 			else
 				Functions.Notify({ Title = "Item '" .. ItemNames[Name] .. "' has spawned."})
 			end
@@ -5138,23 +7229,20 @@ Functions.HandleObject = function(Object)
 
 		table.insert(Objects.Items, Object)
 	elseif Name == "Green_Herb" then
-		if ToggleOn("ItemESPToggle") then Functions.AddESP({ Object = Object, Text = "Green Herb", Color = Options.ItemESPColor.Value }, true) end
+		if Toggles.ItemESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Green Herb", Color = Options.ItemESPColor.Value }, true) end
 		table.insert(Objects.Items, Object)
 	elseif Name == "GoldPile" and Object:GetAttribute("GoldValue") then
-		if ToggleOn("CurrencyESPToggle") then Functions.AddESP({ Object = Object, Text = "Gold Pile [" .. Object:GetAttribute("GoldValue") .. "]", Color = Options.CurrencyESPColor.Value }, true) end
+		if Toggles.CurrencyESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Gold Pile [" .. Object:GetAttribute("GoldValue") .. "]", Color = Options.CurrencyESPColor.Value }, true) end
 		table.insert(Objects.Currency, Object)
 	elseif Name == "StardustPickup" then
-		if ToggleOn("CurrencyESPToggle") then Functions.AddESP({ Object = Object, Text = "Stardust Pile", Color = Options.CurrencyESPColor.Value }, true) end
+		if Toggles.CurrencyESPToggle.Value then Functions.AddESP({ Object = Object, Text = "Stardust Pile", Color = Options.CurrencyESPColor.Value }, true) end
 		table.insert(Objects.Currency, Object)
 	elseif Name == "GiggleCeiling" then
-		if ToggleOn("EntityESPToggle") and Options.EntityESPOptions.Value["Giggle"] then Functions.AddESP({ Object = Object, Text = "Giggle", Color = Options.EntityESPColor.Value }, true) end
-		if ToggleOn("BypassGiggle") then
-			local Hitbox = Object:WaitForChild("Hitbox", 5)
-			if Hitbox then Hitbox.CanTouch = false end
-		end
+		if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Giggle"] then Functions.AddESP({ Object = Object, Text = "Giggle", Color = Options.EntityESPColor.Value }, true) end
+		if Toggles.BypassGiggle.Value then Object:WaitForChild("Hitbox").CanTouch = false end
 		table.insert(Objects.Entities, Object)
 	elseif Name == "GloomPile" then
-		if ToggleOn("BypassGloombatEggs") then
+		if Toggles.BypassGloombatEggs.Value then
 			for _, Part in Object:GetDescendants() do
 				if Part:IsA("BasePart") then Part.CanTouch = false
 				end
@@ -5164,14 +7252,14 @@ Functions.HandleObject = function(Object)
 			if Part:IsA("BasePart") then Part.CanTouch = false end
 		end)
 
-		if ToggleOn("EntityESPToggle") and Options.EntityESPOptions.Value["Gloombat Eggs"] then
+		if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Gloombat Eggs"] then
 			Functions.AddESP({ Object = Object, Text = "Gloombat Eggs", Color = Options.EntityESPColor.Value })
 		end
 
 		table.insert(Connections, Connection)
 		table.insert(Objects.Entities, Object)
 	elseif Name == "TriggerEventCollision" and Functions.CheckCompatability({"firetouchinterest"}) then
-		if (Floor == "Fools" or Floor == "OldHotel") and ToggleOn("RemoveSeekTrigger") then
+		if (Floor == "Fools" or Floor == "OldHotel") and Toggles.RemoveSeekTrigger.Value then
 			task.spawn(function()
 				while Object:IsDescendantOf(game) do
 					for _, Part in Object:GetChildren() do
@@ -5188,45 +7276,36 @@ Functions.HandleObject = function(Object)
 		table.insert(Objects.EventTriggers, Object)
 	elseif Name == "DoorFake" or Name == "FakeDoor" then
 		if Object.Parent and Object:FindFirstChild("Hidden") then
-			if ToggleOn("BypassDupe") then
-				local Hidden = Object:WaitForChild("Hidden", 5)
-				if Hidden then Hidden.CanTouch = false end
+			if Toggles.BypassDupe.Value then
+				Object:WaitForChild("Hidden").CanTouch = false
 				local Lock = Object:FindFirstChild("Lock")
 				if Lock and Lock:FindFirstChild("UnlockPrompt") then Lock.UnlockPrompt.Enabled = false end
 			end
-			if ToggleOn("EntityESPToggle") and Options.EntityESPOptions.Value["Dupe"] then
+			if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Dupe"] then
 				Functions.AddESP({ Object = Object, Text = "Dupe", Color = Options.EntityESPColor.Value }, true)
 			end
 			table.insert(Objects.Entities, Object)
 		end
 	elseif Name == "SideroomSpace" then
-		if ToggleOn("BypassVacuum") then
-			local Collision = Object:WaitForChild("Collision", 5)
-			if Collision then
-				Collision.CanCollide = true
-				Collision.CanTouch = false
-			end
+		if Toggles.BypassVacuum.Value then
+			Object:WaitForChild("Collision").CanCollide = true
+			Object:WaitForChild("Collision").CanTouch = false
 		end
 		table.insert(Objects.Entities, Object)
 	elseif Name == "Snare" then
-		if ToggleOn("EntityESPToggle") and Options.EntityESPOptions.Value["Snare"] then Functions.AddESP({ Object = Object, Text = "Snare", Color = Options.EntityESPColor.Value }, true) end
+		if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Snare"] then Functions.AddESP({ Object = Object, Text = "Snare", Color = Options.EntityESPColor.Value }, true) end
 		for _, Part in Object:GetDescendants() do
-			if Part:IsA("BasePart") then Part.CanTouch = not ToggleOn("BypassSnare") end
+			if Part:IsA("BasePart") then Part.CanTouch = not Toggles.BypassSnare.Value end
 		end
 		local Connection = Object.DescendantAdded:Connect(function(Part)
-			if Part:IsA("BasePart") then Part.CanTouch = not ToggleOn("BypassSnare") end
+			if Part:IsA("BasePart") then Part.CanTouch = not Toggles.BypassSnare.Value end
 		end)
 		table.insert(Connections, Connection)
 		table.insert(Objects.Entities, Object)
 
 		if Object:FindFirstChild("Snare") then
-			local Snare = Object:WaitForChild("Snare", 5)
-			if Snare then
-				local Roots = Snare:WaitForChild("Roots", 5)
-				if Roots then Roots.Transparency = 1 end
-				local SnareBase = Snare:WaitForChild("SnareBase", 5)
-				if SnareBase then SnareBase.Transparency = 1 end
-			end
+			Object:WaitForChild("Snare"):WaitForChild("Roots").Transparency = 1
+			Object:WaitForChild("Snare"):WaitForChild("SnareBase").Transparency = 1
 		end
 		if Object:FindFirstChild("Void") then
 			Object.Void.Transparency = 0
@@ -5235,23 +7314,23 @@ Functions.HandleObject = function(Object)
 	elseif Name == "Seek_Arm" or Name == "ChandelierObstruction" then
 		for _, Part in Object:GetDescendants() do
 			if Part:IsA("BasePart") then
-				Part.CanTouch = not ToggleOn("BypassSeekObstructions")
+				Part.CanTouch = not Toggles.BypassSeekObstructions.Value
 				table.insert(Objects.SeekObstructions, Part)
 			end
 		end
 	elseif Name == "SeekFloodline" then
-		Object.CanCollide = ToggleOn("BypassSeekObstructions")
+		Object.CanCollide = Toggles.BypassSeekObstructions.Value
 		local FloodConn = Object:GetPropertyChangedSignal("CanCollide"):Connect(function()
-			if Object.CanCollide ~= ToggleOn("BypassSeekObstructions") then
-				Object.CanCollide = ToggleOn("BypassSeekObstructions")
+			if Object.CanCollide ~= Toggles.BypassSeekObstructions.Value then
+				Object.CanCollide = Toggles.BypassSeekObstructions.Value
 			end
 		end)
 		Object.Destroying:Once(function() FloodConn:Disconnect() end)
 		table.insert(Objects.SeekObstructions, Object)
 	elseif Object:GetAttribute("RawName") and Object:GetAttribute("RawName"):find("Halt") or Object:GetAttribute("Shade") == true then
-		if ToggleOn("NotifyEntities") and Options.EntityList.Value["Halt"] then
+		if Toggles.NotifyEntities.Value and Options.EntityList.Value["Halt"] then
 			Functions.Notify({ Title = "Entity 'Halt' will spawn in the next room.", Image = EntityIcons["Halt"] })
-			if ToggleOn("EntityChatToggle") then Functions.SendChat("Halt next room!") end
+			if Toggles.EntityChatToggle.Value then Functions.SendChat("Halt next room!") end
 		end
 		local HaltLogConn
 		HaltLogConn = Services.LogService.MessageOut:Connect(function(Message)
@@ -5264,26 +7343,24 @@ Functions.HandleObject = function(Object)
 			end
 		end)
 	elseif Name == "BananaPeel" then
-		if ToggleOn("BypassBanana") then Object.CanTouch = false end
+		if Toggles.BypassBanana.Value then Object.CanTouch = false end
 		table.insert(Objects.Entities, Object)
 	elseif Name == "JeffTheKiller" then
-		if ToggleOn("BypassJeff") then
+		if Toggles.BypassJeff.Value then
 			for _, Part in Object:GetDescendants() do
 				if Part:IsA("BasePart") then Part.CanCollide = false Part.CanTouch = false end
 			end
-			local Humanoid = Object:WaitForChild("Humanoid", 5)
-			if Humanoid then Humanoid.Health = 0 end
+			Object:WaitForChild("Humanoid").Health = 0
 		end
-		table.insert(Objects.Entities, Object)
 	elseif Name == "GrumbleRig" then
-		if ToggleOn("EntityESPToggle") and Options.EntityESPOptions.Value["Grumble"] then Functions.AddESP({ Object = Object, Text = "Grumble", Color = Options.EntityESPColor.Value }, true) end
+		if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Grumble"] then Functions.AddESP({ Object = Object, Text = "Grumble", Color = Options.EntityESPColor.Value }, true) end
 		table.insert(Objects.Entities, Object)
 	elseif Name == "LiveEntityBramble" then
-		if ToggleOn("EntityESPToggle") and Options.EntityESPOptions.Value["Bramble"] then Functions.AddESP({ Object = Object, Text = "Bramble", Color = Options.EntityESPColor.Value }, true) end
+		if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Bramble"] then Functions.AddESP({ Object = Object, Text = "Bramble", Color = Options.EntityESPColor.Value }, true) end
 		table.insert(Objects.Entities, Object)
 	elseif Name == "Groundskeeper" then
-		if ToggleOn("EntityESPToggle") and Options.EntityESPOptions.Value["Groundskeeper"] then Functions.AddESP({ Object = Object, Text = "Groundskeeper", Color = Options.EntityESPColor.Value }, true) end
-		if ToggleOn("NotifyEntities") and Options.EntityList.Value["Groundskeeper"] then
+		if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Groundskeeper"] then Functions.AddESP({ Object = Object, Text = "Groundskeeper", Color = Options.EntityESPColor.Value }, true) end
+		if Toggles.NotifyEntities.Value and Options.EntityList.Value["Groundskeeper"] then
 			local ED = Entities["Groundskeeper"]
 			Functions.Notify({ Title = ED.NotifyMessage.Title, Body = ED.NotifyMessage.Body, Image = EntityIcons["Groundskeeper"] })
 		end
@@ -5294,9 +7371,9 @@ Functions.HandleObject = function(Object)
 				Part.CanTouch = false
 			end
 		end
-		if ToggleOn("EntityESPToggle") and Options.EntityESPOptions.Value["Figure"] then Functions.AddESP({ Object = Object, Text = "Figure", Color = Options.EntityESPColor.Value }, true) end
+		if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Figure"] then Functions.AddESP({ Object = Object, Text = "Figure", Color = Options.EntityESPColor.Value }, true) end
 		table.insert(Objects.Entities, Object)
-		if ToggleOn("RemoveFigure") and Functions.CheckCompatability({"isnetworkowner"}) then
+		if Toggles.RemoveFigure.Value and Functions.CheckCompatability({"isnetworkowner"}) then
 			if Floor == "Mines" then
 				for _, Part in Object:GetDescendants() do
 					if Part:IsA("BasePart") then
@@ -5332,44 +7409,37 @@ Functions.HandleObject = function(Object)
 		end
 		table.insert(Objects.Obstructions, Object)
 	elseif Name == "ElevatorBreaker" then
-		if ToggleOn("AutoBreakerBox") and not Globals.BreakerBoxNotified then
+		if Toggles.AutoBreakerBox.Value and not Globals.BreakerBoxNotified then
 			Functions.Notify({ Title = "Interact with the breaker box.", Body = "It will be automatically solved." })
 			Globals.BreakerBoxNotified = true
 		end
-		local Surface = Object:WaitForChild("SurfaceGui", 10)
-		local CodeLabel = Surface and Surface:FindFirstChild("Frame", true) and Surface.Frame:FindFirstChild("Code", true)
-		if CodeLabel then
-			Connections.BreakerConnection = CodeLabel:GetPropertyChangedSignal("Text"):Connect(function()
-				if ToggleOn("AutoBreakerBox") then
-					if not Globals.BreakerBoxStartNotified and (Floor == "Fools" or Floor == "OldHotel") then
-						Functions.Notify({ Title = "Attempting to solve the breaker box.", Body = "Please wait." })
-						Globals.BreakerBoxStartNotified = true
-					end
-					RemotesFolder.EBF:FireServer()
+		Connections.BreakerConnection = Object:WaitForChild("SurfaceGui").Frame.Code:GetPropertyChangedSignal("Text"):Connect(function()
+			if Toggles.AutoBreakerBox.Value then
+				if not Globals.BreakerBoxStartNotified and (Floor == "Fools" or Floor == "OldHotel") then
+					Functions.Notify({ Title = "Attempting to solve the breaker box.", Body = "Please wait." })
+					Globals.BreakerBoxStartNotified = true
 				end
-				Globals.BreakerBoxInteracted = true
-			end)
-			table.insert(Connections, Connections.BreakerConnection)
-		end
+				RemotesFolder.EBF:FireServer()
+			end
+			Globals.BreakerBoxInteracted = true
+		end)
 	elseif Name == "ElevatorCar" then
 		local ElevConn = Object.DescendantAdded:Connect(function(Desc)
-			if ToggleOn("AutoBreakerBox") and Desc.Name == "TouchInterest" and not Globals.BreakerBoxFinishedNotified then
+			if Toggles.AutoBreakerBox.Value and Desc.Name == "TouchInterest" and not Globals.BreakerBoxFinishedNotified then
 				Functions.Notify({ Title = "Successfully solved the breaker box.", Body = "Try going to the elevator!" })
 				Globals.BreakerBoxFinishedNotified = true
 			end
 		end)
 		Object.Destroying:Once(function() ElevConn:Disconnect() end)
 	elseif Object.ClassName == "ProximityPrompt" and not Object:GetAttribute("FakePrompt") then
-		-- Rift oyunun kendi akisini bozmamak icin hic degistirilmez.
-		if Object.Name == "RiftPrompt" or Object.Name == "StarRiftPrompt" then return end
 		if Object:HasTag("DisableWhenEnabledOnClient") then Object:RemoveTag("DisableWhenEnabledOnClient") end
 
 		Object:SetAttribute("HoldDuration_Old", Object.HoldDuration)
 		Object:SetAttribute("RequiresLineOfSight_Old", Object.RequiresLineOfSight)
 		Object:SetAttribute("MaxActivationDistance_Old", Object.MaxActivationDistance)
 
-		if ToggleOn("InstantPrompts")    then Object.HoldDuration = 0 end
-		if ToggleOn("PromptClip")        then Object.RequiresLineOfSight = false end
+		if Toggles.InstantPrompts.Value    then Object.HoldDuration = 0 end
+		if Toggles.PromptClip.Value        then Object.RequiresLineOfSight = false end
 		Object.MaxActivationDistance = Object:GetAttribute("MaxActivationDistance_Old") * Options.PromptReachSlider.Value
 
 		local LockPromptNames = { UnlockPrompt=true, SkullPrompt=true, LockPrompt=true, ThingToEnable=true, FusesPrompt=true }
@@ -5393,8 +7463,8 @@ Functions.HandleObject = function(Object)
 				FakePrompt.RequiresLineOfSight = Object.RequiresLineOfSight
 				FakePrompt.MaxActivationDistance = Object.MaxActivationDistance
 
-				if ToggleOn("InstantPrompts")    then FakePrompt.HoldDuration = 0 end
-				if ToggleOn("PromptClip")        then FakePrompt.RequiresLineOfSight = false end
+				if Toggles.InstantPrompts.Value    then FakePrompt.HoldDuration = 0 end
+				if Toggles.PromptClip.Value        then FakePrompt.RequiresLineOfSight = false end
 				FakePrompt.MaxActivationDistance = FakePrompt:GetAttribute("MaxActivationDistance_Old") * Options.PromptReachSlider.Value
 
 				FakePrompts[FakePrompt] = Object
@@ -5422,26 +7492,23 @@ Functions.HandleObject = function(Object)
 		end
 		table.insert(Objects.Prompts, Object)
 	elseif Name == "Padlock" then
-		Connections.PadlockConnection = Services.RunService.Heartbeat:Connect(function()
+		local PadlockConn = Services.RunService.Heartbeat:Connect(function()
 			if Object.PrimaryPart then
 				local Distance = LocalPlayer:DistanceFromCharacter(Object.PrimaryPart.Position)
-				if ToggleOn("AutoUnlockPadlockToggle") then
+				if Toggles.AutoUnlockPadlockToggle.Value then
 					local Code = Functions.GetLibraryCode()
 					if Code and tonumber(Code) and Distance < Options.AutoUnlockPadlockSlider.Value then
 						RemotesFolder.PL:FireServer(Code)
 					end
 				end
-				if ToggleOn("AutoLibraryGuessCode") and LatestRoom.Value == 50 then
+				if Toggles.AutoLibraryGuessCode.Value and LatestRoom.Value == 50 then
 					local Code = Functions.GetRandomCode()
 					if Code then RemotesFolder.PL:FireServer(Code) end
 				end
 			end
 		end)
 		Object.Destroying:Once(function()
-			if Connections.PadlockConnection then
-				Connections.PadlockConnection:Disconnect()
-				Connections.PadlockConnection = nil
-			end
+			PadlockConn:Disconnect()
 		end)
 	end
 end
@@ -5473,22 +7540,15 @@ Connections.PromptAnimationFixer1 = Services.ProximityPromptService.PromptButton
 	if Prompt.Parent.Name == "Lock1" and not Functions.HasItem("Lockpick", true) and not Functions.HasItem("Multitool", true) or Prompt.Parent.Name == "Lock2" and not Functions.HasItem("Lockpick", true) and not Functions.HasItem("Multitool", true) then return end
 	if Functions.HasItem("Shears", true) and IsLockPrompt and Prompt.Parent.Name ~= "CuttableVines" and Prompt.Parent.Name ~= "Chest_Vine" and Prompt.Parent.Name ~= "Cellar" then return end
 	
-	if Tool and table.find(AnimateToolNames, Tool.Name) and Globals.UseAnimation and Globals.UseAnimationBreak then
+	if Tool and table.find(AnimateToolNames, Tool.Name) and Globals.UseAnimation then
 		Globals.UseAnimationBreak:Stop()
 		Globals.UseAnimation:Stop()
-		Globals.UseAnimationBreak:Play()
-		if Tool.Name == "Shears" then
-			local Handle = Tool:WaitForChild("Handle", 5)
-			local Snd = Handle and Handle:WaitForChild("sound_prompt", 5)
-			if Snd then pcall(function() Snd:Play() end) end
-		end
+		Globals.UseAnimation:Play()
+		if Tool.Name == "Shears" then Tool:WaitForChild("Handle"):WaitForChild("sound_prompt"):Play() end
 	end
 end)
 
 Globals.ObjectQueue = {}
--- FIFO kuyrukta # kullanilmaz: bas ilerledikce olusan deliklerde # tanimsizdir.
-Globals.QueueHead = 1
-Globals.QueueTail = 1
 local AllowedInstances = {
 	Lava=true, GoldPile=true, KeyObtain=true, Drakobloxxer=true, FuseObtain=true,
 	MinesGenerator=true, JeffTheKiller=true, Snare=true, FakeDoor=true, DoorFake=true, SideroomSpace=true,
@@ -5504,95 +7564,33 @@ local AllowedInstances = {
 	Green_Herb=true, Bridge=true, MouseHole=true, BananaPeel=true, NannerPeel=true, PowerupPad=true,
 	IndustrialGate=true, CollisionFloor=true, ElevatorCar=true, Wax_Door=true, ThingToOpen=true,
 	MovingDoor=true, StardustPickup=true, Hole=true, Groundskeeper=true, MandrakeLive=true,
-	GardenGateButton=true, LotusPetalPickup=true, VineGuillotine=true, LiveEntityBramble=true,
+	GardenGateButton=true, LotusPetalPickup=true, VineGuillotine=true, LiveEntityBramble=true, ArchivesFihTank=true,
 	RiftSpawn=true, ElevatorBreaker=true, RunnerNodes=true, PathLights=true, DuckBoard=true,
-	Padlock=true, EyestalkEndCutscene=true, MinecartRig=true, SeekMovingNewClone=true,
-	StairwellFireAlarm=true, TV_Stand=true,
+	Padlock=true, EyestalkEndCutscene=true, MinecartRig=true, SeekMovingNewClone=true, Cellar=true, ArchivesPackageDeposit=true, StairwellScrapper=true,
+	StairwellFireAlarm=true, ShoppingCart=true, Mirror=true, StairwellLockpickDoor=true
 }
 
 Functions.QueueObject = function(Object)
-	if not AllowedInstances[Object.Name] and Object.ClassName ~= "ProximityPrompt" and Object.Parent ~= CurrentRooms and not ItemNames[Object.Name] then
+	if TimeShowerClone and Object:IsDescendantOf(TimeShowerClone) then
 		return
 	end
-	-- Ayni objeyi iki kez kuyruga koyma (Instance'a property set edilemez)
-	Globals.QueuedSet = Globals.QueuedSet or setmetatable({}, { __mode = "k" })
-	if Globals.QueuedSet[Object] then return end
-	Globals.QueuedSet[Object] = true
-	Globals.QueueCount = (Globals.QueueCount or 0) + 1
-	Globals.ObjectQueue[Globals.QueueTail] = Object
-	Globals.QueueTail = Globals.QueueTail + 1
-	Globals.QueueAdded = (Globals.QueueAdded or 0) + 1
+	local IsHidingSpot = typeof(Object.Name) == "string" and string.find(string.lower(Object.Name), "hidingspot")
+	if not AllowedInstances[Object.Name] and not IsHidingSpot and Object.ClassName ~= "ProximityPrompt" and Object.Parent ~= CurrentRooms and not ItemNames[Object.Name] then
+		return
+	end
+	table.insert(Globals.ObjectQueue, Object)
 end
 
 Globals.QueueDone = true
-Globals.QueueHead = 1
-Globals.QueueTail = 1
-Globals.QueueCount = 0
-Globals.QueueInFlight = 0
-Globals.QueueAdded = 0
-Globals.QueueFinished = 0
-Globals.HandleErrors = 0
-Globals.Stuck = setmetatable({}, { __mode = "k" })
--- HandleObject ayri thread'lerde calisir. Kuyrukta acik Head/Tail kullanilir;
--- bas ilerledikce olusan deliklerde table.insert/# guvenilmez olurdu.
 Connections.QueueConnection = Services.RunService.RenderStepped:Connect(function()
-	-- Slot kapısı yok: HandleObject kendi thread'inde, sonsuza kadar
-	-- takılan bir obje pompayi durdurmamalı. Takilanlar watchdog ile loglanir.
-	local Budget = 40
-	while Globals.QueueCount > 0 and Budget > 0 do
-		Budget -= 1
-		local Object = Globals.ObjectQueue[Globals.QueueHead]
-		if Object == nil then break end
-		Globals.ObjectQueue[Globals.QueueHead] = nil
-		Globals.QueueHead += 1
-		Globals.QueueCount -= 1
-		Globals.QueueInFlight += 1
-
-		local Completed = false
-		task.spawn(function()
-			local Ok, Err = pcall(Functions.HandleObject, Object)
-			if not Ok then
-				Globals.HandleErrors += 1
-				Globals.HandleErrorLast = tostring(Err):sub(1, 200)
-			end
-			Globals.QueueInFlight -= 1
-			Globals.QueueFinished += 1
-			if Globals.QueuedSet then Globals.QueuedSet[Object] = nil end
-			Completed = true
-			if Globals.Stuck[Object] then
-				Globals.Stuck[Object] = nil
-				Globals.StuckCount = math.max(0, (Globals.StuckCount or 1) - 1)
-			end
-		end)
-
-		-- Watchdog: yalnizca gercekten bitmemis ve oyunda kalan objeyi isaretle.
-		task.delay(20, function()
-			if Completed then return end
-			local Alive, Parent = pcall(function() return Object.Parent end)
-			if not Alive or Parent == nil then return end
-			Globals.Stuck[Object] = true
-			Globals.StuckCount = (Globals.StuckCount or 0) + 1
-			Globals.StuckLast = Object.Name .. " (" .. Object.ClassName .. ")"
-		end)
-	end
-	--Bosluk birikmesin: acik aralikla sıkıştır (# delikli tabloda belirsiz)
-	if Globals.QueueHead > 2000 then
-		local Compacted = {}
-		for I = Globals.QueueHead, Globals.QueueTail - 1 do
-			Compacted[#Compacted + 1] = Globals.ObjectQueue[I]
-		end
-		Globals.ObjectQueue = Compacted
-		Globals.QueueHead = 1
-		Globals.QueueTail = Globals.QueueCount + 1
+	local Object = table.remove(Globals.ObjectQueue, 1)
+	if Object then
+		Functions.HandleObject(Object)
 	end
 end)
 
-do
-	local InitialDescendants = Services.Workspace:GetDescendants()
-	for I, Object in InitialDescendants do
-		Functions.QueueObject(Object)
-		if I % 500 == 0 then task.wait() end
-	end
+for _, Object in Services.Workspace:GetDescendants() do
+	task.spawn(function() Functions.QueueObject(Object) end)
 end
 
 Connections.InstanceHandler = Services.Workspace.DescendantAdded:Connect(function(Object)
@@ -5601,11 +7599,11 @@ end)
 
 for _, Player in Services.Players:GetPlayers() do
 	if Player ~= LocalPlayer then
-		if Player.Character and ToggleOn("PlayerESPToggle") then
+		if Player.Character and Toggles.PlayerESPToggle.Value then
 			Functions.AddESP({ Object = Player.Character, Text = Player.Name, Color = Options.PlayerESPColor.Value })
 		end
 		local CharConn = Player.CharacterAdded:Connect(function(NewCharacter)
-			if ToggleOn("PlayerESPToggle") then
+			if Toggles.PlayerESPToggle.Value then
 				Functions.AddESP({ Object = NewCharacter, Text = Player.Name, Color = Options.PlayerESPColor.Value })
 			end
 		end)
@@ -5625,11 +7623,11 @@ end
 
 Connections.PlayerHandler = Services.Players.PlayerAdded:Connect(function(Player)
 	if Player == LocalPlayer then return end
-	if Player.Character and ToggleOn("PlayerESPToggle") then
+	if Player.Character and Toggles.PlayerESPToggle.Value then
 		Functions.AddESP({ Object = Player.Character, Text = Player.Name, Color = Options.PlayerESPColor.Value })
 	end
 	local CharConn = Player.CharacterAdded:Connect(function(NewCharacter)
-		if ToggleOn("PlayerESPToggle") then
+		if Toggles.PlayerESPToggle.Value then
 			Functions.AddESP({ Object = NewCharacter, Text = Player.Name, Color = Options.PlayerESPColor.Value })
 		end
 	end)
@@ -5647,450 +7645,6 @@ Connections.PlayerHandler = Services.Players.PlayerAdded:Connect(function(Player
 end)
 
 local PromptsToFire = {}
-
--- // Auto Play //
--- Tek anahtar: kapi ilerletir, kilitler icin anahtar toplar, 50'de kitaplari
--- toplar ve kodu girer, 100'de plug + breaker cozer. Figure yaklasirsa geri
--- cekilir ama yurume hizi degismez.
-Globals.AutoPlayRunning = false
-Globals.AutoPlayState = ""
-
-local AUTOPLAY_FIGURE_DISTANCE = 60
-local AUTOPLAY_WALKSPEED = 16
-local AutoPlaySavedWalkSpeed = nil
-
-local function AutoPlayChar()
-	local Model = LocalPlayer.Character
-	if Model and Model.Parent then return Model end
-	return nil
-end
-
-local function AutoPlayLog(...)
-	local Parts = {}
-	for I = 1, select("#", ...) do
-		Parts[I] = tostring(select(I, ...))
-	end
-	pcall(function()
-		warn("[Abysall-AutoPlay] " .. table.concat(Parts, " "))
-	end)
-end
-
--- Toggles tablosu kutuphane tarafindan yeniden kurulabiliyor; eski referansi
--- tutmak yerine her seferinde tazeliyoruz, yoksa dongu sessizce birakilir.
-local AutoPlayToggleRef = nil
-
-local function AutoPlayGetToggle()
-	if AutoPlayToggleRef == nil then
-		if Toggles then AutoPlayToggleRef = Toggles["AutoPlay"] end
-		return AutoPlayToggleRef
-	end
-	if AutoPlayToggleRef.Value ~= nil then return AutoPlayToggleRef end
-	if Toggles then AutoPlayToggleRef = Toggles["AutoPlay"] end
-	return AutoPlayToggleRef
-end
-
-local function AutoPlayOn()
-	if Abysall == nil then
-		Globals.AutoPlayRunning = false
-		return false
-	end
-	local Toggle = AutoPlayGetToggle()
-	if Toggle == nil then
-		AutoPlayLog("toggle bulunamadi (Toggles tablosu degismis olabilir)")
-		Globals.AutoPlayRunning = false
-		return false
-	end
-	return Toggle.Value == true
-end
-
-local function AutoPlayWait(Seconds)
-	local Waited = 0
-	while Waited < Seconds do
-		if not AutoPlayOn() then return false end
-		Waited += task.wait(0.1) or 0.1
-	end
-	return true
-end
-
-local function AutoPlayNotify(Title, Body)
-	Functions.Notify({ Title = "Auto Play: " .. Title, Body = Body or "", Time = 4 })
-end
-
-local function AutoPlayRoom(Number)
-	if not CurrentRooms then return nil end
-	return CurrentRooms:FindFirstChild(tostring(Number))
-end
-
--- her adimda taze parca coz (olu karakter / eski referans sessiz olumu engeller)
-local function AutoPlayParts()
-	local Model = AutoPlayChar()
-	if not Model then return nil, nil end
-	local Hum = Model:FindFirstChildOfClass("Humanoid")
-	local HRP = Model:FindFirstChild("HumanoidRootPart")
-	if not Hum or Hum.Health <= 0 or not HRP then return nil, nil end
-	return Hum, HRP
-end
-
--- Doors oyun ici hareketi Collision parcalari ile yonetir ve WalkSpeed'i 0
--- birakabiliyor. WalkSpeed 0 iken Humanoid:MoveTo hic hareket uretmez.
-local function AutoPlayEnsureWalkSpeed()
-	local Model = AutoPlayChar()
-	local Hum = Model and Model:FindFirstChildOfClass("Humanoid")
-	if not Hum then return end
-	if AutoPlaySavedWalkSpeed == nil then
-		AutoPlaySavedWalkSpeed = Hum.WalkSpeed
-	end
-	if Hum.WalkSpeed < 1 then
-		pcall(function() Hum.WalkSpeed = AUTOPLAY_WALKSPEED end)
-		AutoPlayLog("WalkSpeed 0 idi, " .. AUTOPLAY_WALKSPEED .. " yapildi")
-	end
-end
-
-local function AutoPlayRestoreWalkSpeed()
-	local Model = AutoPlayChar()
-	local Hum = Model and Model:FindFirstChildOfClass("Humanoid")
-	if Hum and AutoPlaySavedWalkSpeed ~= nil then
-		pcall(function() Hum.WalkSpeed = AutoPlaySavedWalkSpeed end)
-	end
-	AutoPlaySavedWalkSpeed = nil
-end
-
-local function AutoPlayPivot(Target)
-	if type(Target) ~= "Instance" then return false end
-	local Model = AutoPlayChar()
-	if not Model then return false end
-	if Target:IsA("Model") then
-		return pcall(function() Model:PivotTo(Target:GetPivot()) end)
-	end
-	if Target:IsA("BasePart") then
-		return pcall(function() Model:PivotTo(Target.CFrame) end)
-	end
-	return false
-end
-
--- Auto Rooms ile ayni yontem: PathfindingService ile yol hesapla, Humanoid:MoveTo ile yuru
-local function AutoPlayWalkTo(Position, Timeout)
-	local Hum, HRP = AutoPlayParts()
-	if not Hum or not HRP then
-		AutoPlayLog("yuru baslamadi: Humanoid/HRP yok")
-		return false
-	end
-	if not AutoPlayOn() then return false end
-	if typeof(Position) ~= "Vector3" then
-		AutoPlayLog("gecersiz hedef: " .. typeof(Position))
-		return false
-	end
-
-	local StartPos = HRP.Position
-	local Distance = (Position - StartPos).Magnitude
-	AutoPlayLog("hedef: " .. tostring(Position) .. " mesafe=" .. math.floor(Distance)
-		.. " walkspeed=" .. tostring(Hum.WalkSpeed))
-	AutoPlayEnsureWalkSpeed()
-
-	local Waypoints = {}
-	local Computed = pcall(function()
-		local Path = Services.PathfindingService:CreatePath({
-			AgentCanJump = true,
-			AgentCanClimb = false,
-			WaypointSpacing = 4,
-			AgentRadius = 2,
-			AgentHeight = 3,
-		})
-		Path:ComputeAsync(StartPos, Position)
-		Waypoints = Path:GetWaypoints()
-	end)
-	if not Computed or #Waypoints == 0 then
-		AutoPlayLog("path yok, dogrudan MoveTo")
-		local Ok = pcall(function() Hum:MoveTo(Position) end)
-		if not Ok then return false end
-		return AutoPlayWait(Timeout or 5)
-	end
-	AutoPlayLog("waypoint=" .. #Waypoints)
-
-	local StartTick = tick()
-	for _, Waypoint in ipairs(Waypoints) do
-		local MoveOk = pcall(function() Hum:MoveTo(Waypoint.Position) end)
-		if not MoveOk then return false end
-		local Arrived = false
-		while not Arrived do
-			if not AutoPlayOn() then return false end
-			local LiveHum, LiveHRP = AutoPlayParts()
-			if not LiveHum or not LiveHRP then return false end
-			Hum, HRP = LiveHum, LiveHRP
-			if tick() - StartTick > (Timeout or 12) then
-				AutoPlayLog("zaman asimi, kalan=" .. math.floor((Waypoint.Position - HRP.Position).Magnitude))
-				return false
-			end
-			local Flat = Vector3.new(Waypoint.Position.X, HRP.Position.Y, Waypoint.Position.Z)
-			if (Flat - HRP.Position).Magnitude < 4 then
-				Arrived = true
-				break
-			end
-			task.wait(0.1)
-		end
-	end
-	return true
-end
-
-local function AutoPlayWalkToInstance(Target, Timeout)
-	if type(Target) ~= "Instance" then
-		AutoPlayLog("hedef gecersiz: " .. typeof(Target))
-		return false
-	end
-	local Position = nil
-	if Target:IsA("Model") then
-		local Ok, Pivot = pcall(function() return Target:GetPivot() end)
-		if Ok and Pivot then
-			Position = Pivot.Position
-		else
-			AutoPlayLog("model pivot alinamadi: " .. Target.Name)
-		end
-	elseif Target:IsA("BasePart") then
-		Position = Target.Position
-	end
-	if not Position then
-		AutoPlayLog("konum cozulemedi: " .. Target.Name .. " (" .. Target.ClassName .. ")")
-		return false
-	end
-	return AutoPlayWalkTo(Position, Timeout)
-end
-
-local function AutoPlayNearestFigure()
-	local Best, BestDist = nil, math.huge
-	for _, Object in ipairs(Objects.Entities) do
-		if Object.Parent and (Object.Name == "Figure" or Object.Name == "FigureRig" or Object.Name == "FigureRagdoll") then
-			local Part = Object.PrimaryPart or Object:FindFirstChild("HumanoidRootPart")
-			if Part then
-				local Distance = LocalPlayer:DistanceFromCharacter(Part.Position)
-				if Distance < BestDist then Best, BestDist = Part, Distance end
-			end
-		end
-	end
-	return Best, BestDist
-end
-
--- Figure mesafesi korunur, hiz degistirilmez (sadece geri cekilme)
-local function AutoPlayAvoidFigure()
-	local Hum, MyPart = AutoPlayParts()
-	if not Hum or not MyPart then return false end
-	local Part, Distance = AutoPlayNearestFigure()
-	if not Part then return false end
-	if Distance > AUTOPLAY_FIGURE_DISTANCE then return false end
-	local Away = MyPart.Position - Part.Position
-	if Away.Magnitude < 0.01 then
-		Away = Vector3.new(0, 0, 1)
-	end
-	-- sadece konum degistir, yon ve hiz aynen kalir
-	local Target = Part.Position + Away.Unit * AUTOPLAY_FIGURE_DISTANCE
-	pcall(function()
-		Hum:MoveTo(Target)
-	end)
-	return true
-end
-
-local function AutoPlayFirePromptIn(Room, Predicate, Limit)
-	local Fired = 0
-	if type(Room) ~= "Instance" then return 0 end
-	for _, Descendant in ipairs(Room:GetDescendants()) do
-		if not AutoPlayOn() then break end
-		if Descendant:IsA("ProximityPrompt") and (not Predicate or Predicate(Descendant)) then
-			if AutoPlayAvoidFigure() then
-				AutoPlayWait(0.2)
-			end
-			pcall(function()
-				Functions.FirePrompt(Descendant)
-			end)
-			Fired += 1
-			if not AutoPlayWait(0.15) then break end
-			if Limit and Fired >= Limit then break end
-		end
-	end
-	return Fired
-end
-
--- 50: kitaplari topla, kodu hesapla, gir
-local function AutoPlayLibrary(Room)
-	if not AutoPlayWait(0.5) then return false end
-	AutoPlayNotify("50", "Kitaplar toplaniyor")
-	AutoPlayFirePromptIn(Room, function(Prompt)
-		local Parent = Prompt.Parent
-		if not Parent then return false end
-		return Parent.Name == "LibraryHintPaper" or Parent.Name == "LibraryHintPaperHard"
-			or Parent.Name == "LibraryBook" or string.find(string.lower(Parent.Name), "book", 1, true) ~= nil
-	end)
-	if not AutoPlayWait(0.5) then return false end
-
-	local Code = nil
-	pcall(function() Code = Functions.GetLibraryCode() end)
-	if type(Code) ~= "string" or not string.find(Code, "%d") then
-		-- kod net degilse tahmin etmeyi dene
-		pcall(function() Code = Functions.GetRandomCode() end)
-	end
-	if type(Code) == "string" and string.find(Code, "%d") then
-		local PL = RemotesFolder and RemotesFolder:FindFirstChild("PL")
-		if PL then
-			pcall(function() PL:FireServer(Code) end)
-			AutoPlayNotify("50", "Kod girildi: " .. Code)
-			return AutoPlayWait(1)
-		end
-	end
-	AutoPlayNotify("50", "Kod bulunamadi, atlandi")
-	return false
-end
-
--- 100: plug + breaker
-local function AutoPlayBreaker(Room)
-	if not AutoPlayWait(0.5) then return false end
-	AutoPlayNotify("100", "Plug ve breaker")
-	AutoPlayFirePromptIn(Room, nil)
-	if not AutoPlayWait(0.5) then return false end
-
-	local Breaker = nil
-	if type(Room) == "Instance" then
-		Breaker = Room:FindFirstChild("ElevatorBreaker", true)
-	end
-	if not Breaker then
-		Breaker = CurrentRooms and CurrentRooms:FindFirstChild("ElevatorBreaker", true)
-	end
-	if Breaker then
-		AutoPlayWalkToInstance(Breaker.PrimaryPart or Breaker, 15)
-		if not AutoPlayWait(0.4) then return false end
-		local Surface = Breaker:FindFirstChild("SurfaceGui", true)
-		local CodeLabel = Surface and Surface:FindFirstChild("Frame", true) and Surface.Frame:FindFirstChild("Code", true)
-		if CodeLabel then
-			pcall(function() RemotesFolder.EBF:FireServer() end)
-			AutoPlayNotify("100", "Breaker tetiklendi")
-		end
-	else
-		pcall(function() RemotesFolder.EBF:FireServer() end)
-	end
-
-	-- cozulmesini bekle
-	local Waited = 0
-	while AutoPlayOn() and Waited < 20 do
-		Waited += 1
-		AutoPlayWait(0.5)
-		if Globals.BreakerBoxFinishedNotified then break end
-		if Breaker == nil or not Breaker.Parent then break end
-	end
-	return AutoPlayWait(1)
-end
-
--- modul Character degiskenine bagimli degil: taze karakterle kapiyi bulur
-local function AutoPlayFindDoor()
-	if not AutoPlayChar() then return nil end
-	local Start = 0
-	pcall(function()
-		if LatestRoom then Start = tonumber(LatestRoom.Value) or 0 end
-	end)
-	local Best, BestNum = nil, math.huge
-	local Descendants = {}
-	pcall(function() Descendants = Services.Workspace:GetDescendants() end)
-	for _, Obj in ipairs(Descendants) do
-		if Obj.Name == "Door" and Obj:IsA("Model") then
-			local Open = Obj:GetAttribute("Open")
-			if Open == false or Open == nil then
-				local N = tonumber(Obj.Parent and Obj.Parent.Name)
-				if N and N >= Start and N < BestNum then
-					BestNum = N
-					Best = Obj
-				end
-			end
-		end
-	end
-	if not Best then
-		AutoPlayLog("kapit bulunamadi (oda " .. Start .. ")")
-	end
-	return Best
-end
-
-local function AutoPlayNextRoom()
-	if not AutoPlayWait(0.15) then return false end
-	local Door = AutoPlayFindDoor()
-	if not Door then return false end
-	AutoPlayLog("kapi bulundu: oda " .. tostring(Door.Parent and Door.Parent.Name))
-	if AutoPlayAvoidFigure() then
-		AutoPlayWait(0.2)
-	end
-
-	-- Kapiyi acmak icin once yuruyerek yaklasmaya calis
-	local DoorPart = Door:FindFirstChild("Door") or Door
-	local Entered = AutoPlayWalkToInstance(DoorPart, 10)
-	if not Entered then
-		-- panel bulunamadiysa modelin PrimaryPart'ini dene
-		local Primary = Door:FindFirstChildOfClass("BasePart") or Door.PrimaryPart
-		Entered = AutoPlayWalkToInstance(Primary, 10)
-		if not Entered then
-			AutoPlayLog("kapiya varilamadi")
-			AutoPlayRestoreWalkSpeed()
-			return false
-		end
-	end
-	if not AutoPlayWait(0.3) then return false end
-	pcall(function() Door.ClientOpen:FireServer() end)
-	pcall(function() Door.ClientOpen:Fire() end)
-	AutoPlayLog("kapi acildi")
-	return true
-end
-
-local function AutoPlayRun()
-	if Globals.AutoPlayRunning then return end
-	Globals.AutoPlayRunning = true
-	AutoPlayLog("baslatildi, toggle=" .. tostring(AutoPlayGetToggle()))
-	AutoPlayLog("karakter=" .. tostring(AutoPlayChar()))
-	AutoPlayNotify("baslatildi")
-
-	task.spawn(function()
-		local LastRoom = -1
-		while AutoPlayOn() and Globals.AutoPlayRunning do
-			local StepOk, StepErr = pcall(function()
-				local Number = 0
-				pcall(function()
-					if LatestRoom then Number = tonumber(LatestRoom.Value) or 0 end
-				end)
-				local Room = AutoPlayRoom(Number)
-				if Room then
-					-- kilitler icin anahtarlari topla (Auto Interact mantigi)
-					AutoPlayFirePromptIn(Room, function(Prompt)
-						local Names = { UnlockPrompt = true, SkullPrompt = true, LockPrompt = true, ThingToEnable = true, FusesPrompt = true }
-						return Names[Prompt.Name] == true
-					end, 3)
-
-					if Number ~= LastRoom then
-						LastRoom = Number
-						Globals.AutoPlayState = "oda " .. Number
-						AutoPlayNotify("oda " .. Number)
-						if Number == 49 or Number == 50 then
-							AutoPlayLibrary(AutoPlayRoom(50) or Room)
-						elseif Number == 99 or Number == 100 then
-							AutoPlayBreaker(AutoPlayRoom(100) or Room)
-						end
-					end
-				end
-				if not AutoPlayNextRoom() then
-					if not AutoPlayWait(0.5) then return end
-				end
-			end)
-			if not StepOk then
-				AutoPlayNotify("hata", tostring(StepErr):sub(1, 120))
-				if not AutoPlayWait(1) then break end
-			end
-		end
-		Globals.AutoPlayRunning = false
-		Globals.AutoPlayState = ""
-		AutoPlayRestoreWalkSpeed()
-		AutoPlayNotify("durdu")
-	end)
-end
-
-OnChange("AutoPlay", function(Value)
-	if Value then
-		AutoPlayRun()
-	else
-		Globals.AutoPlayRunning = false
-		AutoPlayRestoreWalkSpeed()
-	end
-end)
 local PromptCooldown = {}
 
 Functions.FirePrompt      = Abysall.Environment.fireproximityprompt
@@ -6167,16 +7721,53 @@ if not Functions.FirePrompt then
 end
 
 local AutoInteractBlacklist = {
-	HidePrompt=true, RiftPrompt=true, StarRiftPrompt=true, ClimbPrompt=true,
+	HidePrompt=true, RiftPrompt=true, StarRiftPrompt=true, InteractPrompt=true, ClimbPrompt=true,
 	DonatePrompt=true, DialoguePrompt=true, RevivePrompt=true, EnterPrompt=true, AnimatePrompt=true,
 	ToolEventPrompt=true, Prompt=true, PropPrompt=true
 }
 
 local TriggerDebounce = false
 
+local function GetHidingSpotModel(Prompt)
+	if not Prompt or not Prompt.Parent then return false end
+	local Model = Prompt.Parent
+	while Model and not Model:IsA("Model") do
+		Model = Model.Parent
+	end
+	if not Model then return nil end
+
+	local Name = string.lower(Model.Name)
+	if not string.find(Name, "hidingspot") and not string.find(Name, "hiding_spot") then
+		return nil
+	end
+	return Model
+end
+
+local function HasHidePrompt(Model)
+	return Model and (Model:FindFirstChild("HidePrompt") or Model:FindFirstChild("HidingPrompt")) ~= nil
+end
+
+local function IsHidingSpotPrompt(Prompt)
+	if not Prompt or not Prompt.Parent then return false end
+	if Prompt.Name ~= "HidePrompt" and Prompt.Name ~= "HidingPrompt" then return false end
+	return HasHidePrompt(GetHidingSpotModel(Prompt))
+end
+
 Functions.TriggerPrompt = function(Prompt)
-	if AutoInteractBlacklist[Prompt.Name] then return end
 	if not Prompt or not Prompt.Parent then return end
+	if Character:GetAttribute("Hiding") == true then return end
+	local HidingSpot = GetHidingSpotModel(Prompt)
+	if HidingSpot and Prompt.Name ~= "InteractPrompt" then return end
+	local IsHidingSpotInteractPrompt = HidingSpot and Prompt.Name == "InteractPrompt"
+	if AutoInteractBlacklist[Prompt.Name] and not IsHidingSpotPrompt(Prompt) and not IsHidingSpotInteractPrompt then return end
+	if (Prompt.Name == "HidePrompt" or Prompt.Name == "HidingPrompt") and not IsHidingSpotPrompt(Prompt) then return end
+	if (Prompt.Name == "HidePrompt" or Prompt.Name == "HidingPrompt" or IsHidingSpotPrompt(Prompt)) then
+		if not Toggles.AutoClosetToggle.Value then return end
+		local Entity = Functions.GetNearestEntity(true, Options.AutoClosetEntityList.Value)
+		if not Entity then return end
+		local EntityDistance = LocalPlayer:DistanceFromCharacter(Entity.PrimaryPart.Position)
+		if EntityDistance > (EntityDistances[Entity.Name] or 150) then return end
+	end
 	if TriggerDebounce then return end
 
 	local ParentItem = Functions.HasItem(Prompt.Parent.Name)
@@ -6223,11 +7814,6 @@ Functions.TriggerPrompt = function(Prompt)
 	if Prompt:GetAttribute("AutoInteractIgnore") then return end
 	if Prompt.Name == "PushPrompt" and Options.AutoInteractIgnoreList.Value["Minecarts"] then return end
 	if (Prompt.Parent.Name == "GoldPile" or Prompt.Parent.Name == "StardustPickup") and Options.AutoInteractIgnoreList.Value["Currency"] then return end
-	if (Prompt.Name == "ArchivesOfficeChair" or Prompt.Parent.Name == "ArchivesOfficeChair") and Options.AutoInteractIgnoreList.Value["Office Chairs"] then return end
-	if (Prompt.Name == "ArchivesLargePrinter" or Prompt.Parent.Name == "ArchivesLargePrinter") and Options.AutoInteractIgnoreList.Value["Large Printers"] then return end
-	if (Prompt.Name == "Vendor_ShakelightVendingMachine" or Prompt.Parent.Name == "Vendor_ShakelightVendingMachine") and Options.AutoInteractIgnoreList.Value["Vending Machines"] then return end
-	if (Prompt.Name == "SeatPrompt" or Prompt.Parent.Name == "SeatPrompt") and Options.AutoInteractIgnoreList.Value["Seats"] then return end
-	if (Prompt.Name == "TrashcanPrompt" or Prompt.Parent.Name == "TrashcanPrompt") and Options.AutoInteractIgnoreList.Value["Trash Cans"] then return end
 
 	if Prompt.Parent.Name == "Bandage" then
 		local BPack = Functions.HasItem("BandagePack")
@@ -6257,6 +7843,30 @@ Functions.TriggerPrompt = function(Prompt)
 	if (Prompt.Parent.Name == "LibraryHintPaper" or Prompt.Parent.Name == "PickupItem") and (Functions.HasItem("LibraryHintPaper") or Functions.HasItem("LibraryHintPaperHard")) then return end
 	if Prompt.Parent.Name == "AlarmClock" and Functions.HasItem("AlarmClock") then return end
 	if Prompt.Parent.Name == "KeyObtainFake" or Prompt.Parent.Name == "TithingPlate" then return end
+	if Prompt.Parent.Name == "StarBottle" then return end
+    -- archives
+	if Prompt.parent.Name == "ArchivesStorageBox" then return end
+	if Prompt.Parent.Name == "Briefcase" then return end
+	if Prompt.Name == "SinkPrompt" or Prompt.Parent.Name == "Faucet" then return end
+	if Prompt.Parent.Name == "PaperPlanePickup" or Prompt.Parent.Name == "PaperPlane" then return end
+	if Prompt.Name == "ManualOpenPrompt" or Prompt.Name == "EntryPrompt" then return end
+	if Prompt.Parent.Parent.Name == "ArchivesLargePrinter" then return end
+	if Prompt.Name == "TrashcanPrompt" then return end
+	if Prompt.Parent.Name == "Keyboard" then return end
+	if Prompt.Name == "CartPrompt" or Prompt.Parent.Parent.Name == "ArchivesOfficeChair" then return end
+	if Prompt.Parent.Name == "ArchivesTerminal" then return end
+	if Prompt.Name == "VendorPrompt" then return end
+    if Prompt.Parent.Name == "SeatPart" or Prompt.Name == "SeatPrompt" then return end
+
+
+	-- Stairwell
+	if Prompt.Parent.Name == "StairwellScrapper" then return end
+	if Prompt.Name == "PortraitDupePrompt" or Prompt.Parent.Name == "MirrorTool" then return end
+	if Prompt.Name == "LaptopPrompt" or Prompt.Parent.Name == "SecretLaptop" then return end
+	if Prompt.Parent.Name == "StairwellFireAlarm" or Prompt.Parent.Parent.Name == "StairwellFireAlarm" then return end
+	if Prompt.Parent.name == "CobblerFriendly" then return end
+	if Prompt.Parent.Name == "StairwellTerminal" then return end
+	if Prompt.Parent.Parent.Name == "MeldChord" then return end
 
 	Functions.FirePrompt(Prompt)
 	TriggerDebounce = true
@@ -6266,7 +7876,7 @@ end
 
 Globals.LastAutoInteractFire = tick()
 Connections.AutoInteract = Services.RunService.Heartbeat:Connect(function()
-	local Active = ToggleOn("AutoInteractToggle") or Options.AutoInteractKeybind:GetState()
+	local Active = Toggles.AutoInteractToggle.Value or Options.AutoInteractKeybind:GetState()
     if not Active then return end
     if tick() - Globals.LastAutoInteractFire < 1/60 then return end
 
@@ -6320,16 +7930,12 @@ Connections.InfiniteItemsHandler = Services.ProximityPromptService.PromptTrigger
 		Globals.UseAnimation:Stop()
 		Globals.UseAnimationBreak:Stop()
 		Globals.UseAnimationBreak:Play()
-		if Tool.Name == "Shears" then
-			local H = Tool:WaitForChild("Handle", 5)
-			local S = H and H:WaitForChild("sound_prompt", 5)
-			if S then pcall(function() S:Play() end) end
-		end
+		if Tool.Name == "Shears" then Tool:WaitForChild("Handle"):WaitForChild("sound_prompt"):Play() end
 	end
 
 	local AnyTool = Character:FindFirstChildOfClass("Tool")
 	local ToolData = AnyTool and ItemNames[AnyTool.Name]
-	if AnyTool and ToolData and ToggleOn("InfiniteItemsToggle") and Options.InfiniteItemsList.Value[ToolData] then
+	if AnyTool and ToolData and Toggles.InfiniteItemsToggle.Value and Options.InfiniteItemsList.Value[ToolData] then
 		Drops.ChildAdded:Once(function(NewTool)
 			local Prompt = NewTool:FindFirstChild("ModulePrompt")
 			local RealPrompt = FakePrompts[Object]
@@ -6337,11 +7943,7 @@ Connections.InfiniteItemsHandler = Services.ProximityPromptService.PromptTrigger
 			Functions.FirePrompt(RealPrompt)
 		end)
 		Character.ChildAdded:Once(function(NewTool)
-			if NewTool.Name == "Shears" then
-				local H = NewTool:WaitForChild("Handle", 5)
-				local S = H and H:WaitForChild("sound_promptend", 5)
-				if S then pcall(function() S:Play() end) end
-			end
+			if NewTool.Name == "Shears" then NewTool:WaitForChild("Handle"):WaitForChild("sound_promptend"):Play() end
 		end)
 		RemotesFolder.DropItem:FireServer(AnyTool)
 	else
@@ -6353,427 +7955,28 @@ end)
 Connections.FloorReplicatedHandler = FloorReplicated.DescendantAdded:Connect(function(Object)
 	if Object.Name == "GlitchScreech" then
 		Modules.GlitchScreech = Object
-		if ToggleOn("RemoveScreech") then Object.Name = "GlitchScreech_Disabled" end
+		if Toggles.RemoveScreech.Value then Object.Name = "GlitchScreech_Disabled" end
 	end
 	if Object.Name:find("Jumpscare") and Object:IsA("ModuleScript")
 		and not Object.Name:find("Eyestalk") and not Object.Name:find("Groundskeeper") and not Object.Name:find("Monument")
 	then
 		Object:SetAttribute("OriginalName", Object.Name)
-		if ToggleOn("DisableEntityJumpscares") then Object.Name = Object.Name .. "_Disabled" end
+		if Toggles.DisableEntityJumpscares.Value then Object.Name = Object.Name .. "_Disabled" end
 		table.insert(Objects.JumpscareModules, Object)
 	end
 end)
 
 if FloorReplicated:FindFirstChild("DigitalTimer") then
 	Connections.HasteTimerConnection = FloorReplicated.DigitalTimer:GetPropertyChangedSignal("Value"):Connect(function()
-		if ToggleOn("NotifyHasteTime") then Functions.Caption(Functions.GetHasteTime(), true) end
+		if Toggles.NotifyHasteTime.Value then Functions.Caption(Functions.GetHasteTime(), true) end
 	end)
 end
-
--- Drone Stampede sayaç + 10sn erken uyarı (NotifyHasteTime gibi, Haste'den bağımsız)
-Functions.IsArchivesFloor = function()
-	local Ok, Name = pcall(function() return tostring(Floor) end)
-	if not Ok then return false end
-	return Name:lower():find("archiv") ~= nil
-end
-
-Functions.WarnDroneStampede = function(Remaining, TargetHour, ClockText)
-	local State = Globals.DroneStampedeState
-	local WarningTime = 10
-	pcall(function()
-		if Options.DroneStampedeWarning then WarningTime = Options.DroneStampedeWarning.Value end
-	end)
-	local CycleKey = tostring(TargetHour) .. "_" .. tostring(math.floor((tick() - State.RunStartTick) / 720))
-	if State.WarnedFor == CycleKey then return end
-	if tick() - State.LastWarnTick < 20 then return end
-	State.WarnedFor = CycleKey
-	State.LastWarnTick = tick()
-	local TargetText = (TargetHour == 5 and "5:00") or "9:00"
-	local Body = "Stampede in ~" .. math.max(1, math.floor(Remaining + 0.5)) .. "s (" .. TargetText .. "). Ortadan cekil, kenarlara gec / hide!"
-	if ClockText then
-		Body = "Clock " .. ClockText .. " -> " .. TargetText .. " in ~" .. math.max(1, math.floor(Remaining + 0.5)) .. "s. Ortadan cekil / hide!"
-	end
-	Functions.Notify({ Title = "Drone Stampede incoming!", Body = Body, Time = 6 })
-	if Toggles.EntityChatToggle and ToggleOn("EntityChatToggle") then
-		pcall(function() Functions.SendChat("Drone Stampede in " .. math.max(1, math.floor(Remaining + 0.5)) .. "s! (" .. TargetText .. ")") end)
-	end
-end
-
-Functions.NotifyStampedeNow = function(Source)
-	local State = Globals.DroneStampedeState
-	if tick() - State.LastStampedeTick < 15 then return end
-	State.LastStampedeTick = tick()
-	State.WarnedFor = nil
-	-- Fallback sayaci kalibre et: 12h dongude 9:00 = pos 0, 5:00 = pos 480
-	if Source == "5:00" then
-		State.RunStartTick = tick() - 480
-	elseif Source == "9:00" then
-		State.RunStartTick = tick()
-	end
-	Functions.Notify({ Title = "DRONE STAMPEDE!", Body = "Stampede NOW" .. (Source and (" (" .. tostring(Source) .. ")") or "") .. "! Ortadan cekil, kenarlara gec / hide!", Time = 6 })
-	if Toggles.EntityChatToggle and ToggleOn("EntityChatToggle") then
-		pcall(function() Functions.SendChat("DRONE STAMPEDE NOW!") end)
-	end
-end
-
-Connections.DroneStampedeLoop = Services.RunService.Heartbeat:Connect(function()
-	pcall(function()
-		local StampedeTimeOn = Toggles.NotifyStampedeTime and ToggleOn("NotifyStampedeTime")
-		local StampedeWarnOn = Toggles.NotifyDroneStampede and ToggleOn("NotifyDroneStampede")
-		if not StampedeTimeOn and not StampedeWarnOn then return end
-		if not Functions.IsArchivesFloor() then return end
-		-- 0.25sn throttle (Caption spamını engelle)
-		local State = Globals.DroneStampedeState
-		if tick() - (State._LastPoll or 0) < 0.25 then return end
-		State._LastPoll = tick()
-
-		local Remaining, TargetHour, ClockText, Source = Functions.GetDroneStampedeCountdown()
-		if not Remaining then return end
-
-		local WarningTime = 10
-		pcall(function()
-			if Options.DroneStampedeWarning then WarningTime = Options.DroneStampedeWarning.Value end
-		end)
-
-		-- Sayaç (NotifyHasteTime gibi caption)
-		if StampedeTimeOn then
-			local Second = math.floor(Remaining)
-			if Second ~= State.LastCaptionSecond then
-				State.LastCaptionSecond = Second
-				local TargetText = (TargetHour == 5 and "5:00") or "9:00"
-				local Prefix = "Stampede"
-				if ClockText then Prefix = "Clock " .. ClockText end
-				Functions.Caption(Prefix .. " -> " .. TargetText .. " in " .. Functions.FormatStampedeTime(Remaining), Remaining <= WarningTime)
-			end
-		end
-
-		-- 10sn kala uyarı
-		if StampedeWarnOn and Remaining <= WarningTime and Remaining > 0 then
-			Functions.WarnDroneStampede(Remaining, TargetHour, ClockText)
-		end
-
-		-- Stampede anı (saat tam 5:00 / 9:00)
-		if Remaining <= 1.5 and Remaining >= 0 then
-			Functions.NotifyStampedeNow(TargetHour == 5 and "5:00" or "9:00")
-		end
-	end)
-end)
-
--- Chime sesi = stampede çok yakında (hoparlörden chime -> horde). Son uyarı olarak yakala.
-Connections.DroneStampedeChime = Services.Workspace.DescendantAdded:Connect(function(Obj)
-	pcall(function()
-		if not Functions.IsArchivesFloor() then return end
-		if not ((Toggles.NotifyDroneStampede and ToggleOn("NotifyDroneStampede")) or (Toggles.NotifyStampedeTime and ToggleOn("NotifyStampedeTime"))) then return end
-		if Obj:IsA("Sound") then
-			local N = (Obj.Name or ""):lower()
-			local ParentName = ""
-			pcall(function() ParentName = (Obj.Parent and Obj.Parent.Name or ""):lower() end)
-			local Full = N .. " " .. ParentName
-			if Full:find("chime") or Full:find("bell") or Full:find("speaker") or Full:find("clock") or Full:find("stampede") or Full:find("rushhour") or Full:find("rush_hour") then
-				local Conn
-				Conn = Obj.Played:Connect(function()
-					Functions.NotifyStampedeNow("chime")
-					pcall(function() Conn:Disconnect() end)
-				end)
-				table.insert(Connections, Conn)
-				Obj.Destroying:Once(function() pcall(function() Conn:Disconnect() end) end)
-				-- Zaten çalıyorsa direkt uyar
-				pcall(function()
-					if Obj.Playing then Functions.NotifyStampedeNow("chime") end
-				end)
-			end
-		end
-	end)
-end)
-
--- Toplu Drone spawn = stampede başladı (yedek tespit: 4sn içinde 3+ Drone/DroneMoving)
-do
-	Connections.DroneStampedeSpawn = Services.Workspace.ChildAdded:Connect(function(Entity)
-		pcall(function()
-			if Entity.Name ~= "Drone" and Entity.Name ~= "DroneMoving" then return end
-			local State = Globals.DroneStampedeState
-			table.insert(State.RecentDroneSpawns, tick())
-			-- eski kayıtları temizle
-			local Fresh = {}
-			for _, T in State.RecentDroneSpawns do
-				if tick() - T < 4 then table.insert(Fresh, T) end
-			end
-			State.RecentDroneSpawns = Fresh
-			if #Fresh >= 3 then
-				State.RecentDroneSpawns = {}
-				if Functions.IsArchivesFloor() and ((Toggles.NotifyDroneStampede and ToggleOn("NotifyDroneStampede")) or (Toggles.NotifyStampedeTime and ToggleOn("NotifyStampedeTime"))) then
-					Functions.NotifyStampedeNow("horde")
-				end
-			end
-		end)
-	end)
-end
-
--- Bypass Drone: "Drones" modeli icindeki "WalkedInto" remote'unu sil (dokununca dusurmesin)
-Connections.DroneBypassHandler = Services.Workspace.DescendantAdded:Connect(function(Obj)
-	pcall(function()
-		if not (Toggles.BypassDrone and ToggleOn("BypassDrone")) then return end
-		if Obj.Name == "WalkedInto" and (Obj:IsA("RemoteEvent") or Obj:IsA("RemoteFunction")) then
-			if Obj:FindFirstAncestor("Drones") then Obj:Destroy() end
-		elseif Obj.Name == "Drones" and (Obj:IsA("Model") or Obj:IsA("Folder")) then
-			local Model = Obj
-			task.defer(function() Functions.RemoveDroneWalkedInto(Model) end)
-		end
-	end)
-end)
-
--- Ransom gorununce hareketsiz kal (hareket edeni yakalar, 500 gold ister, ~90sn surer)
-Globals.RansomFrozen = false
-Functions.SetRansomFrozen = function(Frozen)
-	pcall(function()
-		if Frozen == Globals.RansomFrozen then return end
-		if not Humanoid then return end
-		Globals.RansomFrozen = Frozen
-		if Frozen then
-			Humanoid.WalkSpeed = 0
-		else
-			local Boost = 0
-			pcall(function()
-				if Toggles.SpeedBoostToggle and ToggleOn("SpeedBoostToggle") and Options.SpeedBoostSlider then
-					Boost = Options.SpeedBoostSlider.Value
-				end
-			end)
-			Humanoid.WalkSpeed = Functions.GetCurrentSpeed() + Boost
-		end
-	end)
-end
-OnChange("RansomFreeze", function(Value)
-	if not Value then Functions.SetRansomFrozen(false) end
-end)
-Functions.TriggerRansomFreeze = function(Source)
-	if not (Toggles.RansomFreeze and ToggleOn("RansomFreeze")) then return end
-	if not Functions.IsArchivesFloor() then return end
-	if Globals.RansomFrozen then return end
-	Functions.Notify({ Title = "RANSOM! Kıpırdama!", Body = "Hic hareket etme, 500 gold hazirla. (" .. tostring(Source) .. ")", Time = 6 })
-	Functions.Caption("RANSOM - DUR, KIPIRDAMA", true)
-	if Toggles.EntityChatToggle and ToggleOn("EntityChatToggle") then
-		pcall(function() Functions.SendChat("Ransom! Don't move!") end)
-	end
-	Functions.SetRansomFrozen(true)
-	task.delay(90, function() Functions.SetRansomFrozen(false) end)
-end
-Connections.RansomWatcher = Services.Workspace.ChildAdded:Connect(function(Obj)
-	pcall(function()
-		if Obj.Name ~= "Ransom" then return end
-		Functions.TriggerRansomFreeze("entity")
-		Obj.Destroying:Once(function() Functions.SetRansomFrozen(false) end)
-	end)
-end)
-Connections.RansomUIWatcher = LocalPlayer.PlayerGui.DescendantAdded:Connect(function(Obj)
-	pcall(function()
-		local N = string.lower(Obj.Name or "")
-		if not N:find("ransom") then return end
-		if not (Obj:IsA("ScreenGui") or Obj:IsA("Frame") or Obj:IsA("ImageLabel") or Obj:IsA("TextLabel")) then return end
-		Functions.TriggerRansomFreeze("ui")
-		Obj.Destroying:Once(function() Functions.SetRansomFrozen(false) end)
-	end)
-end)
-
--- Sıradaki kapının arkasında bekleyen sabit drone uyarısı
-Connections.DroneDoorWatcher = Services.RunService.Heartbeat:Connect(function()
-	pcall(function()
-		if not (Toggles.NotifyDroneAtDoor and ToggleOn("NotifyDroneAtDoor")) then return end
-		if not Functions.IsArchivesFloor() then return end
-		if not RootPart then return end
-		local State = Globals.DroneStampedeState
-		if tick() - (State._LastDoorCheck or 0) < 1.5 then return end
-		State._LastDoorCheck = tick()
-		local Dist = 15
-		pcall(function() if Options.DroneDoorDistance then Dist = Options.DroneDoorDistance.Value end end)
-		-- en yakin RoomExit
-		local BestExit, BestD = nil, 80
-		for _, Room in CurrentRooms:GetChildren() do
-			local Exit = Room:FindFirstChild("RoomExit")
-			if Exit and Exit:IsA("BasePart") then
-				local D = (Exit.Position - RootPart.Position).Magnitude
-				if D < BestD then BestD, BestExit = D, Exit end
-			end
-		end
-		if not BestExit then State._DoorWarnedFor = nil return end
-		if State._DoorWarnedFor == BestExit then return end
-		-- "Drones" konumlarini 5sn'de bir tazele (her kontrolde tum odalari gezmek kasma yapar)
-		if tick() - (State._LastDroneCache or 0) > 5 then
-			State._LastDroneCache = tick()
-			local List = {}
-			for _, Room in CurrentRooms:GetChildren() do
-				for _, Desc in Room:GetDescendants() do
-					if Desc.Name == "Drones" and (Desc:IsA("Model") or Desc:IsA("Folder") or Desc:IsA("BasePart")) then
-						local Pos = nil
-						if Desc:IsA("Model") then
-							local Ok, Pv = pcall(function() return Desc:GetPivot() end)
-							if Ok and Pv then Pos = Pv.Position end
-						elseif Desc:IsA("BasePart") then
-							Pos = Desc.Position
-						else
-							local First = Desc:FindFirstChildWhichIsA("BasePart", true)
-							if First then Pos = First.Position end
-						end
-						if Pos then table.insert(List, Pos) end
-					end
-				end
-			end
-			State._DronesCache = List
-		end
-		local Count = 0
-		local Cache = State._DronesCache or {}
-		for _, Pos in Cache do
-			if (Pos - BestExit.Position).Magnitude <= Dist then
-				Count += 1
-			end
-		end
-		if Count > 0 then
-			State._DoorWarnedFor = BestExit
-			Functions.Notify({ Title = "Drone kapida!", Body = "Siradaki kapinin arkasinda " .. tostring(Count) .. " drone grubu var. Camdan kontrol et!", Time = 5 })
-			if Toggles.EntityChatToggle and ToggleOn("EntityChatToggle") then
-				pcall(function() Functions.SendChat("Drone behind next door!") end)
-			end
-		end
-	end)
-end)
-
--- Honcho mail odasi: BoxID'si bir deposit ile uyusan kutulari ESP'le
-Globals.HonchoBoxes = {}
-Functions.ReadMailBoxID = function(Model, Names)
-	if not Model then return nil end
-	local Found = nil
-	pcall(function()
-		for _, N in Names do
-			local V = Model:GetAttribute(N)
-			if V ~= nil then Found = tostring(V) break end
-		end
-		if not Found then
-			for AttrName, AttrValue in Model:GetAttributes() do
-				for _, N in Names do
-					if string.lower(AttrName) == string.lower(N) then Found = tostring(AttrValue) break end
-				end
-				if Found then break end
-			end
-		end
-		if not Found then
-			for _, N in Names do
-				local Child = Model:FindFirstChild(N)
-				if Child and (Child:IsA("StringValue") or Child:IsA("IntValue") or Child:IsA("NumberValue")) then
-					Found = tostring(Child.Value)
-					break
-				end
-			end
-		end
-		if not Found then
-			for _, Child in Model:GetChildren() do
-				for _, N in Names do
-					if string.lower(Child.Name) == string.lower(N)
-						and (Child:IsA("StringValue") or Child:IsA("IntValue") or Child:IsA("NumberValue"))
-					then
-						Found = tostring(Child.Value)
-						break
-					end
-				end
-				if Found then break end
-			end
-		end
-	end)
-	return Found
-end
-Functions.SweepHonchoBoxes = function()
-	pcall(function()
-		for _, Obj in Services.Workspace:GetDescendants() do
-			if Obj.Name == "ArchivesStorageBox" or Obj.Name == "ArchivesPackageDeposit" then
-				local Known = false
-				for _, Entry in Globals.HonchoBoxes do
-					if Entry.Model == Obj then Known = true break end
-				end
-				if not Known then table.insert(Globals.HonchoBoxes, { Model = Obj, Label = nil }) end
-			end
-		end
-	end)
-	Globals._LastHonchoSweep = tick()
-end
-Functions.RefreshHonchoBoxESP = function()
-	if not (Toggles.HonchoBoxESPToggle and ToggleOn("HonchoBoxESPToggle")) then return end
-	pcall(function()
-		-- agir tam tarama sadece cache bossa ve en son 15sn'den eskiyse (yeni eklenenleri DescendantAdded yakalar)
-		if #Globals.HonchoBoxes == 0 and tick() - (Globals._LastHonchoSweep or 0) > 15 then
-			Functions.SweepHonchoBoxes()
-		end
-		-- olu/silinenleri temizle
-		for I = #Globals.HonchoBoxes, 1, -1 do
-			local Entry = Globals.HonchoBoxes[I]
-			if not Entry.Model or not Entry.Model:IsDescendantOf(Services.Workspace) then
-				if Entry.Model then Functions.RemoveESP(Entry.Model) end
-				table.remove(Globals.HonchoBoxes, I)
-			end
-		end
-		-- deposit ID'lerini topla
-		local DepositIDs = {}
-		for _, Entry in Globals.HonchoBoxes do
-			if Entry.Model and Entry.Model.Name == "ArchivesPackageDeposit" then
-				local ID = Functions.ReadMailBoxID(Entry.Model, {"BoxID"})
-				if ID then DepositIDs[ID] = true end
-				local WantLabel = ID and ("Deposit [" .. ID .. "]") or nil
-				if WantLabel ~= Entry.Label then
-					Entry.Label = WantLabel
-					if WantLabel then
-						Functions.AddESP({ Object = Entry.Model, Text = WantLabel, Color = Options.HonchoBoxESPColor.Value }, false)
-					else
-						Functions.RemoveESP(Entry.Model)
-					end
-				end
-			end
-		end
-		-- ID'si bir deposit ile uyusan kutulari isaretle
-		for _, Entry in Globals.HonchoBoxes do
-			if Entry.Model and Entry.Model.Name == "ArchivesStorageBox" then
-				local ID = Functions.ReadMailBoxID(Entry.Model, {"Tool_BoxID"})
-				local WantLabel = (ID and DepositIDs[ID]) and ("Box [" .. ID .. "] -> Deposit") or nil
-				if WantLabel ~= Entry.Label then
-					Entry.Label = WantLabel
-					if WantLabel then
-						Functions.AddESP({ Object = Entry.Model, Text = WantLabel, Color = Options.HonchoBoxESPColor.Value }, false)
-					else
-						Functions.RemoveESP(Entry.Model)
-					end
-				end
-			end
-		end
-	end)
-end
-Connections.HonchoBoxWatcher = Services.Workspace.DescendantAdded:Connect(function(Obj)
-	pcall(function()
-		if Obj.Name ~= "ArchivesStorageBox" and Obj.Name ~= "ArchivesPackageDeposit" then return end
-		local Known = false
-		for _, Entry in Globals.HonchoBoxes do
-			if Entry.Model == Obj then Known = true break end
-		end
-		if not Known then table.insert(Globals.HonchoBoxes, { Model = Obj, Label = nil }) end
-		Obj.Destroying:Once(function()
-			Functions.RemoveESP(Obj)
-			for I = #Globals.HonchoBoxes, 1, -1 do
-				if Globals.HonchoBoxes[I].Model == Obj then table.remove(Globals.HonchoBoxes, I) end
-			end
-		end)
-		Functions.RefreshHonchoBoxESP()
-	end)
-end)
-Connections.HonchoBoxLoop = Services.RunService.Heartbeat:Connect(function()
-	pcall(function()
-		if not (Toggles.HonchoBoxESPToggle and ToggleOn("HonchoBoxESPToggle")) then return end
-		local Now = tick()
-		if Now - (Globals._LastHonchoRefresh or 0) < 2 then return end
-		Globals._LastHonchoRefresh = Now
-		Functions.RefreshHonchoBoxESP()
-	end)
-end)
 
 Connections.FogHandler = Services.Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
 	if Services.Lighting.FogEnd ~= 10000000 then
 		Globals.OldFog = Services.Lighting.FogEnd
 	end
-	if ToggleOn("RemoveCameraFog") then
+	if Toggles.RemoveCameraFog.Value then
 		Services.Lighting.FogEnd = 10000000
 	end
 end)
@@ -6781,123 +7984,94 @@ end)
 Connections.FogHandler2 = Services.Lighting.DescendantAdded:Connect(function(Object)
 	if not Object:IsA("Atmosphere") then return end
 	Object:SetAttribute("Density_Old", Object.Density)
-	if ToggleOn("RemoveCameraFog") then Object.Density = 0 end
+	if Toggles.RemoveCameraFog.Value then Object.Density = 0 end
 
 	local AtmoConn2 = Object:GetPropertyChangedSignal("Density"):Connect(function()
 		if Object.Density ~= 0 then Object:SetAttribute("Density_Old", Object.Density) end
-		if ToggleOn("RemoveCameraFog") then Object.Density = 0 end
+		if Toggles.RemoveCameraFog.Value then Object.Density = 0 end
 	end)
 	Object.Destroying:Once(function() AtmoConn2:Disconnect() end)
 	table.insert(Connections, AtmoConn2)
 	table.insert(Globals.FogInstances, Object)
 end)
 
-local RusherAliases = { Rush=true, Ambush=true, Eyes=true, Lookman=true, Blitz=true, ["A-60"]=true, ["A-120"]=true, AR0xMBUSH=true, ["RNIUSHCG=="]=true, ["Custom Entity"]=true, CustomEntity=true }
+local RusherAliases = { Rush=true, Bash=true, Scribbles=true, DronesStampede=true, Ambush=true, Eyes=true, Lookman=true, Blitz=true, ["A-60"]=true, ["A-120"]=true, AR0xMBUSH=true, ["RNIUSHCG=="]=true, ["Custom Entity"]=true }
 
-local function ProcessEntitySpawn(Entity)
-	local EntityData = Entities[Entity.Name]
-	if not EntityData then
-		-- Bilinmeyen workspace modeli: sessiz gecme, F9'a dus (throttle'li).
-		-- Boylece yeni/degisen entity isimleri hemen belli olur.
-		if Entity:IsA("Model") and Entity.Name ~= "CurrentRooms" then
-			Globals._UnknownWarned = Globals._UnknownWarned or {}
-			local Last = Globals._UnknownWarned[Entity.Name] or 0
-			if tick() - Last > 30 then
-				Globals._UnknownWarned[Entity.Name] = tick()
-				warn("[Abysall] bilinmeyen entity (algilanmadi): " .. tostring(Entity.Name))
-			end
-		end
-		return
+local function HandleEntitySpawn(Entity)
+	if not Entity or typeof(Entity) ~= "Instance" then return end
+
+	local Model = Entity
+	if Entity:IsA("Humanoid") then
+		Model = Entity.Parent
 	end
+	if not Model or not Model:IsA("Model") then return end
 
-	TrackCreakModel(Entity)
+	local EntityData = Entities[Model.Name]
+	if not EntityData then return end
+	if Model:GetAttribute("Abysall_EntityHandled") then return end
+	Model:SetAttribute("Abysall_EntityHandled", true)
 
-	local PPStart = tick()
-	while not Entity.PrimaryPart and tick() - PPStart < 10 do
-		local Prefer = Entity:FindFirstChild("HumanoidRootPart") or Entity:FindFirstChild("RushNew")
-		if Prefer and Prefer:IsA("BasePart") then
-			Entity.PrimaryPart = Prefer
-		else
-			for _, Child in Entity:GetChildren() do
-				if Child:IsA("BasePart") then Entity.PrimaryPart = Child break end
-			end
+	while not Model.PrimaryPart do
+		for _, Child in Model:GetChildren() do
+			if Child:IsA("BasePart") then Model.PrimaryPart = Child end
 		end
-		task.wait()
-	end
-	if not Entity.PrimaryPart then
-		warn("[Abysall] entity PrimaryPart yok: " .. tostring(Entity.Name))
-		return
+		if not Model.PrimaryPart then task.wait() end
 	end
 	task.wait(0.1)
 
-	if not Entity.PrimaryPart or LocalPlayer:DistanceFromCharacter(Entity.PrimaryPart.Position) >= 10000 then return end
+	if not Model.PrimaryPart or LocalPlayer:DistanceFromCharacter(Model.PrimaryPart.Position) >= 10000 then return end
 
 	local Alias = EntityData.Alias
-    local RealAlias = Alias
-	if Options.EntityList.Value[Alias] and ToggleOn("NotifyEntities") then
+	local RealAlias = Alias
+	if Options.EntityList.Value[Alias] and Toggles.NotifyEntities.Value then
 		local NotifyTitle = EntityData.NotifyMessage.Title
 		local NotifyBody  = EntityData.NotifyMessage.Body
-		local NotifyImage = EntityIcons[Entity.Name]
+		local NotifyImage = EntityIcons[Model.Name]
 
-		if Entity.Name == "RushMoving" and Entity.PrimaryPart.Name ~= "RushNew" then
-			NotifyTitle = NotifyTitle:gsub("Rush", Entity.PrimaryPart.Name)
-			local Attachment = Entity.PrimaryPart:WaitForChild("Attachment", 5)
-			local Emitter = Attachment and Attachment:FindFirstChildOfClass("ParticleEmitter")
-			if Emitter then NotifyImage = Emitter.Texture end
-			Alias = Entity.PrimaryPart.Name
+		if Model.Name == "RushMoving" and Model.PrimaryPart.Name ~= "RushNew" then
+			NotifyTitle = NotifyTitle:gsub("Rush", Model.PrimaryPart.Name)
+			NotifyImage = Model.PrimaryPart:WaitForChild("Attachment").ParticleEmitter.Texture
+			Alias = Model.PrimaryPart.Name
 		end
 
-		Functions.Notify({ Title = NotifyTitle, Body = NotifyBody, Image = NotifyImage, Time = ToggleOn("NotifyKeepNotifications") and Entity or nil })
+		Functions.Notify({ Title = NotifyTitle, Body = NotifyBody, Image = NotifyImage, Time = Toggles.NotifyKeepNotifications.Value and Model or nil })
 
-		if ToggleOn("EntityChatToggle") then
+		if Toggles.EntityChatToggle.Value then
 			Functions.SendChat(Alias .. " " .. Options.EntityChatMessage.Value)
 		end
 	end
 
-	if Entity.Name ~= "GloombatSwarm" then
-		if ToggleOn("EntityESPToggle") and Options.EntityESPOptions.Value[RealAlias] then
-			if Entity.Name == "MonumentEntity" then
-				Functions.AddESP({ Object = Entity.Top, Text = Alias, Color = Options.EntityESPColor.Value })
+	if Model.Name ~= "GloombatSwarm" then
+		if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value[RealAlias] then
+			if Model.Name == "MonumentEntity" then
+				Functions.AddESP({ Object = Model.Top, Text = Alias, Color = Options.EntityESPColor.Value })
 			else
-				Functions.AddESP({ Object = Entity, Text = Alias, Color = Options.EntityESPColor.Value })
+				Functions.AddESP({ Object = Model, Text = Alias, Color = Options.EntityESPColor.Value })
 			end
 		end
-		table.insert(Objects.Entities, Entity)
+		table.insert(Objects.Entities, Model)
 	end
 
 	if RusherAliases[EntityData.Alias] then
-		Instance.new("Humanoid", Entity).Name = "HighlightHumanoid"
-		local Root = Entity.PrimaryPart
+		Instance.new("Humanoid", Model).Name = "HighlightHumanoid"
+		local Root = Model.PrimaryPart
 		if Root then Root.Transparency = 0.999 Root.Material = Enum.Material.Plastic end
 	end
 
-	if Entity.Name == "Lookman" then
+	if Model.Name == "Lookman" then
 		CurrentRooms.ChildAdded:Wait()
 		task.wait(10)
-		Entity:Destroy()
+		Model:Destroy()
 	end
 end
 
-Connections.EntityHandler = Services.Workspace.ChildAdded:Connect(ProcessEntitySpawn)
-
--- Bazi entity'ler Workspace altinda degil, workspace.Camera altinda spawn oluyor
--- (orn. NoiseModel). Onlar icin Camera'yi da izlemek gerekiyor.
-local CameraContainer = Services.Workspace:FindFirstChild("Camera")
-if CameraContainer then
-	Connections.CameraEntityHandler = CameraContainer.ChildAdded:Connect(ProcessEntitySpawn)
-	for _, Child in ipairs(CameraContainer:GetChildren()) do
-		task.spawn(ProcessEntitySpawn, Child)
-	end
-end
-Connections.CameraWatcher = Services.Workspace.ChildAdded:Connect(function(Child)
-	if Child.Name == "Camera" then
-		Connections.CameraEntityHandler = Child.ChildAdded:Connect(ProcessEntitySpawn)
-	end
-end)
-
-Connections.LiveEntitiesFolderWatcher = Services.Workspace.DescendantAdded:Connect(function(Object)
-	if Object.Name == "LiveEntities" and ToggleOn("LiveEntitiesESPToggle") then
-		WatchLiveEntitiesFolder()
+Connections.EntityHandler = Services.Workspace.ChildAdded:Connect(HandleEntitySpawn)
+Connections.EntityDescendantHandler = Services.Workspace.DescendantAdded:Connect(function(Descendant)
+	local EntityModel = Descendant:IsA("Humanoid") and Descendant.Parent or Descendant
+	if EntityModel and EntityModel:IsA("Model") and Entities[EntityModel.Name] then
+		task.defer(function()
+			HandleEntitySpawn(Descendant)
+		end)
 	end
 end)
 
@@ -6950,6 +8124,7 @@ LocalPlayer.CharacterAdded:Connect(function(NewCharacter)
 end)
 
 Library:OnUnload(function()
+	StopTimeShower(true)
 	for Key, Connection in Connections do
 		if type(Key) == "string" then
 			pcall(function() Connection:Disconnect() end)
@@ -6981,14 +8156,7 @@ Library:OnUnload(function()
 		end
 	end
 
-	for Model in pairs(CreakModels) do
-		SetCreakTouch(Model, false)
-		CreakModels[Model] = nil
-	end
-
 	for _, Object in Objects.SeekBridges do Object:Destroy() end
-
-	RestoreCreakModels()
 
 	for _, Fog in Globals.FogInstances do
 		Fog.Density = Fog:GetAttribute("Density_Old")
@@ -7024,14 +8192,8 @@ Library:OnUnload(function()
 	Globals.RoomsNodesFolder:Destroy()
 	Globals.ManipulateBody:Destroy()
 
-	local OldAmbient = nil
-	pcall(function()
-		local Room = CurrentRooms and CurrentRooms:FindFirstChild(tostring(LocalPlayer:GetAttribute("CurrentRoom")))
-		if Room then OldAmbient = Room:GetAttribute("Ambient") end
-	end)
-	if OldAmbient ~= nil then
-		Services.TweenService:Create(Services.Lighting, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), { Ambient = OldAmbient }):Play()
-	end
+	local OldAmbient = CurrentRooms:FindFirstChild(tostring(LocalPlayer:GetAttribute("CurrentRoom"))):GetAttribute("Ambient")
+	Services.TweenService:Create(Services.Lighting, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), { Ambient = OldAmbient }):Play()
 
 	for _, Prompt in Objects.Prompts do
 		if FakePrompts[Prompt] then
@@ -7083,64 +8245,13 @@ Library:OnUnload(function()
 		Controls.GetMoveVector = Globals.OriginalGetMoveVector
 	end
 
-	if Globals.FlyBody then
-		Globals.FlyBody.Velocity = Vector3.zero
-		Globals.FlyBody.Parent = nil
-	end
-	pcall(function()
-		for _, P in pairs(WaterParts) do
-			if P then P:Destroy() end
-		end
-	end)
-	ForgetRunning = false
-
-	if type(Abysall.AddonDisablers) == "table" then
-		for _, D in ipairs(Abysall.AddonDisablers) do
-			pcall(function() if D.Fn then D.Fn() end end)
-		end
-		Abysall.AddonDisablers = nil
-	end
-	pcall(function() getgenv().abysall = nil end)
-	pcall(function() getgenv().mspaint = nil end)
-
 	getgenv().Abysall = nil
+	shared.Hastelepasta = false
 end)
 
-while not Globals.MainUI do task.wait() end
-Abysall.Interface.ApplySettingsTab(Window)
-Abysall.Interface.ApplyAddons(Window, "doors/doors")
-Functions.Notify({ Title = "Successfully loaded in " .. math.floor((tick() - LoadStart) * 1000) / 1000 .. " seconds." , Body = "Press '" .. tostring(Options.MenuKeybind.Value) .. "' to toggle the UI."})
 
--- Algilama/ESP sagligi: kuyruk birikiyorsa veya islenen obje hata veriyorsa F9'a yaz
-	task.spawn(function()
-		local LastReported = 0
-		while task.wait(3) do
-			local Pending = Globals.QueueCount or 0
-			local InFlight = Globals.QueueInFlight or 0
-			local Added = Globals.QueueAdded or 0
-			local Finished = Globals.QueueFinished or 0
-			local Errs = Globals.HandleErrors or 0
-			local Stuck = Globals.StuckCount or 0
-			if (Pending > 40 or Errs > LastReported or Stuck > 0) and tick() - LastReported > 5 then
-				LastReported = tick()
-				local Samples = {}
-				local Last = Globals.QueueHead + Pending - 1
-				for I = Globals.QueueHead, math.min(Globals.QueueHead + 9, Last) do
-					local Entry = Globals.ObjectQueue[I]
-					if Entry ~= nil then
-						local Ok, Label = pcall(function()
-							return Entry.ClassName .. ":" .. Entry.Name
-						end)
-						if Ok and #Samples < 5 then
-							table.insert(Samples, Label)
-						end
-					end
-				end
-				warn("[Abysall] kuyruk bekleyen=" .. Pending .. " isleniyor=" .. InFlight
-					.. " eklenen=" .. Added .. " biten=" .. Finished .. " takilan=" .. Stuck
-					.. " islenen_hata=" .. Errs .. " takilan_son=" .. tostring(Globals.StuckLast)
-					.. " son_hata=" .. tostring(Globals.HandleErrorLast)
-					.. " ornek=" .. table.concat(Samples, ","))
-			end
-		end
-	end)
+
+while not Globals.MainUI do task.wait() end
+
+Abysall.Interface.ApplySettingsTab(Window)
+Functions.Notify({ Title = "Successfully loaded in " .. math.floor((tick() - LoadStart) * 1000) / 1000 .. " seconds." , Body = "Press '" .. tostring(Options.MenuKeybind.Value) .. "' to toggle the UI."})
