@@ -1,4 +1,10 @@
-A
+-- 	Risky = Floor ~= "Mines" (Means it only works on mines)
+
+local LoadStart = tick()
+
+if shared.Hastelepasta then
+    return 
+end
 
 shared.Hastelepasta = true
 
@@ -1215,7 +1221,6 @@ end
 
 local Window = Library:CreateWindow({
 	Title = "🎃 Abysall Hub Continued",
-	Footer = "dsc.gg/abysallhubcontinued",
 	NotifySide = "Right",
 	ShowCustomCursor = false,
 	AutoShow = true,
