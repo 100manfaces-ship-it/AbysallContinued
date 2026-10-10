@@ -1,0 +1,783 @@
+-- Abysall Hub | Universal (desteklenmeyen her oyun)
+-- Generic arac seti: NoCooldown supurucu, Ability Spy + refire/spam,
+-- Remote dump + isimle atesleme, Player ESP, hareket.
+
+local LoadStart = tick()
+Abysall.SavePath = "Universal"
+
+local Library = Abysall.Interface.Library
+local SaveManager = Abysall.Interface.SaveManager
+local ThemeManager = Abysall.Interface.ThemeManager
+
+local Toggles = Library.Toggles
+local Toggles = Library.Toggles
+-- Toggle okumalarini nil-guvenli yapar; anahtar yoksa false doner (kutuphane sifirlanirsa cokmeyi onler)
+local function ToggleOn(Name)
+	local T = Toggles and Toggles[Name]
+	if T == nil then return false end
+	return T.Value == true
+end
+local function OnChange(Name, Fn)
+	local T = Toggles and Toggles[Name]
+	if T == nil then return end
+	T:OnChanged(Fn)
+end
+local Options = Library.Options
+
+local function CloneReference(Object)
+    if Abysall and Abysall.Environment.cloneref then
+        return Abysall.Environment.cloneref(Object)
+    else
+        return Object
+    end
+end
+
+local Services = setmetatable({}, {
+    __index = function(self, Name)
+        return CloneReference(game:GetService(Name))
+    end
+})
+
+local LocalPlayer = Services.Players.LocalPlayer
+local Camera = Services.Workspace.CurrentCamera
+
+Services.Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+    Camera = Services.Workspace.CurrentCamera
+end)
+
+local function CheckCompat(Array)
+    for _, Name in pairs(Array) do
+        if not Abysall.Environment[Name] then
+            return false
+        end
+    end
+    return true
+end
+
+local Connections = {}
+local function TrackConn(Conn)
+    table.insert(Connections, Conn)
+    return Conn
+end
+
+local Window = Library:CreateWindow({
+    Title = "Abysall Hub | Universal",
+    Footer = "dsc.gg/abysallhub",
+    NotifySide = "Right",
+    ShowCustomCursor = false,
+    AutoShow = true,
+    Center = true,
+    TabPadding = 3,
+    MenuFadeTime = 0,
+    CornerRadius = 2,
+})
+
+Abysall.Interface.ApplyInfoTab(Window)
+
+local Tabs = {
+    Combat = Window:AddTab("Combat", "swords"),
+    Visuals = Window:AddTab("Visuals", "eye"),
+    Misc = Window:AddTab("Misc", "house"),
+}
+
+local Groupboxes = {}
+
+-- // Combat: NoCooldown (client-tarafli supurucu) //
+Groupboxes.Combat_CD = Tabs.Combat:AddLeftGroupbox("NoCooldown")
+
+Groupboxes.Combat_CD:AddToggle("NoCooldown", {
+    Text = "NoCooldown", Default = false,
+    Tooltip = "Karakterdeki ve GUI'deki cooldown degerlerini surekli sifirlar. Server dogrulamaliysa ise yaramaz.",
+})
+Groupboxes.Combat_CD:AddLabel("Server kontrol ediyorsa calismaz, Spy kullan.", true)
+
+local function LooksLikeCooldown(Name)
+    local N = string.lower(tostring(Name))
+    if N:find("cooldown") or N:find("cool_down") or N:find("skillcd") then return true end
+    if N == "cd" or N:sub(1, 3) == "cd_" or N:sub(-3) == "_cd" or N:find("_cd_", 1, true) then return true end
+    if N:match("^cd%d*$") or N:match("cd%d*$") then return true end
+    return false
+end
+
+local function ClearCooldowns()
+    local Char = LocalPlayer.Character
+    local Targets = {}
+    if Char then table.insert(Targets, Char) end
+    table.insert(Targets, LocalPlayer)
+    local Gui = LocalPlayer:FindFirstChild("PlayerGui")
+    if Gui then table.insert(Targets, Gui) end
+
+    for _, Root in ipairs(Targets) do
+        local OkAttr, Attrs = pcall(function() return Root:GetAttributes() end)
+        if OkAttr and type(Attrs) == "table" then
+            for Key in pairs(Attrs) do
+                if LooksLikeCooldown(Key) then
+                    pcall(function() Root:SetAttribute(Key, 0) end)
+                end
+            end
+        end
+        for _, Desc in ipairs(Root:GetDescendants()) do
+            if Desc:IsA("NumberValue") or Desc:IsA("IntValue") then
+                if LooksLikeCooldown(Desc.Name) and Desc.Value ~= 0 then
+                    pcall(function() Desc.Value = 0 end)
+                end
+            elseif Desc:IsA("TextLabel") or Desc:IsA("TextButton") then
+                if LooksLikeCooldown(Desc.Name) and Desc.Text:match("%d") then
+                    pcall(function() Desc.Text = "Ready" end)
+                end
+            end
+        end
+    end
+end
+
+local SweepAcc, SweepRate = 0, 0.1
+TrackConn(Services.RunService.Heartbeat:Connect(function(Delta)
+    if Toggles.NoCooldown and ToggleOn("NoCooldown") then
+        SweepAcc = SweepAcc + Delta
+        if SweepAcc >= SweepRate then
+            SweepAcc = 0
+            pcall(ClearCooldowns)
+        end
+    else
+        SweepAcc = SweepRate
+    end
+end))
+
+-- // Combat: Aimbot (kamera kilidi) //
+Groupboxes.Combat_Aim = Tabs.Combat:AddLeftGroupbox("Aimbot")
+
+Groupboxes.Combat_Aim:AddToggle("AimbotEnabled", {
+    Text = "Aimbot", Default = false,
+    Tooltip = "Tus basiliyken kamerayi fareye en yakin dusmana kilitler.",
+})
+Toggles.AimbotEnabled:AddKeyPicker("AimbotKey", {
+    Text = "Aimbot Key", Default = "Q", Mode = "Hold", SyncToggleState = false,
+})
+Groupboxes.Combat_Aim:AddToggle("AimbotUseRMB", {
+    Text = "Sag Click ile de calissin", Default = true,
+})
+Groupboxes.Combat_Aim:AddDropdown("AimbotPart", {
+    Text = "Hedef Parca", Values = { "Head", "HumanoidRootPart" }, Default = 1,
+})
+Groupboxes.Combat_Aim:AddSlider("AimbotFOV", {
+    Text = "FOV", Min = 10, Max = 1000, Default = 200, Rounding = 0, Compact = true,
+})
+Groupboxes.Combat_Aim:AddToggle("AimbotTeamCheck", { Text = "Team Check", Default = true })
+Groupboxes.Combat_Aim:AddToggle("AimbotWallCheck", {
+    Text = "Wall Check", Default = false, Tooltip = "Duvar arkasi hedefi gormezden gelir.",
+})
+Groupboxes.Combat_Aim:AddSlider("AimSmooth", {
+    Text = "Yumusatma", Min = 1, Max = 20, Default = 1, Rounding = 0, Compact = true,
+})
+Groupboxes.Combat_Aim:AddToggle("AimSticky", { Text = "Sticky Target", Default = true })
+Groupboxes.Combat_Aim:AddToggle("AimFOVCircle", { Text = "FOV Dairesi", Default = true })
+
+local function AimIsEnemy(Player)
+    if Player == LocalPlayer then return false end
+    if not Player.Character then return false end
+    if Player:GetAttribute("Alive") == false then return false end
+    if Toggles.AimbotTeamCheck and ToggleOn("AimbotTeamCheck") then
+        if LocalPlayer.Team ~= nil and Player.Team ~= nil and Player.Team == LocalPlayer.Team then
+            return false
+        end
+    end
+    local Hum = Player.Character:FindFirstChildOfClass("Humanoid")
+    if Hum and Hum.Health <= 0 then return false end
+    return true
+end
+
+local function AimIsVisible(TargetPart)
+    if not Toggles.AimbotWallCheck or not ToggleOn("AimbotWallCheck") then
+        return true
+    end
+    local Ok, Res = pcall(function()
+        local RayParams = RaycastParams.new()
+        RayParams.FilterType = Enum.RaycastFilterType.Exclude
+        RayParams.FilterDescendantsInstances = { LocalPlayer.Character, Camera }
+        return Services.Workspace:Raycast(Camera.CFrame.Position, (TargetPart.Position - Camera.CFrame.Position), RayParams)
+    end)
+    if not Ok or not Res then return true end
+    return Res.Instance:IsDescendantOf(TargetPart.Parent)
+end
+
+local function AimGetMouse()
+    local Loc = Services.UserInputService:GetMouseLocation()
+    return Vector2.new(Loc.X, Loc.Y)
+end
+
+local function AimGetTarget()
+    local Best, BestDist = nil, Options.AimbotFOV and Options.AimbotFOV.Value or 200
+    local PartName = Options.AimbotPart and Options.AimbotPart.Value or "Head"
+    local Mouse = AimGetMouse()
+    for _, Player in pairs(Services.Players:GetPlayers()) do
+        if AimIsEnemy(Player) then
+            local Part = Player.Character:FindFirstChild(PartName)
+            if Part then
+                local Pos, OnScreen = Camera:WorldToViewportPoint(Part.Position)
+                if OnScreen then
+                    local Dist = (Vector2.new(Pos.X, Pos.Y) - Mouse).Magnitude
+                    if Dist < BestDist and AimIsVisible(Part) then
+                        BestDist = Dist
+                        Best = Part
+                    end
+                end
+            end
+        end
+    end
+    return Best
+end
+
+TrackConn(Services.RunService.RenderStepped:Connect(function()
+    pcall(function()
+        if not _G.UNI_FOVCircle and typeof(Drawing) == "function" then
+            local C = Drawing.new("Circle")
+            C.Thickness = 1
+            C.NumSides = 64
+            C.Filled = false
+            C.Color = Color3.fromRGB(255, 255, 255)
+            _G.UNI_FOVCircle = C
+        end
+        if _G.UNI_FOVCircle then
+            local Show = Toggles.AimbotEnabled and ToggleOn("AimbotEnabled") and Toggles.AimFOVCircle and ToggleOn("AimFOVCircle")
+            _G.UNI_FOVCircle.Visible = Show or false
+            if Show then
+                _G.UNI_FOVCircle.Position = AimGetMouse()
+                _G.UNI_FOVCircle.Radius = Options.AimbotFOV and Options.AimbotFOV.Value or 200
+            end
+        end
+    end)
+
+    if Toggles.AimbotEnabled and ToggleOn("AimbotEnabled") then
+        local HoldingKey = Options.AimbotKey and Options.AimbotKey:GetState()
+        local HoldingRMB = Toggles.AimbotUseRMB and ToggleOn("AimbotUseRMB") and Services.UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+        if HoldingKey or HoldingRMB then
+            local Target = AimGetTarget()
+            local FOV = (Options.AimbotFOV and Options.AimbotFOV.Value) or 200
+            if Toggles.AimSticky and ToggleOn("AimSticky") and _G.UNI_Locked and _G.UNI_Locked.Parent then
+                local LP = _G.UNI_Locked
+                local Pos, On = Camera:WorldToViewportPoint(LP.Position)
+                if On and (Vector2.new(Pos.X, Pos.Y) - AimGetMouse()).Magnitude <= (FOV + 50) then
+                    Target = LP
+                else
+                    _G.UNI_Locked = nil
+                end
+            end
+            if Target then
+                _G.UNI_Locked = Target
+                local Goal = CFrame.new(Camera.CFrame.Position, Target.Position)
+                local Smooth = (Options.AimSmooth and Options.AimSmooth.Value) or 1
+                if Smooth <= 1 then
+                    Camera.CFrame = Goal
+                else
+                    Camera.CFrame = Camera.CFrame:Lerp(Goal, 1 / Smooth)
+                end
+            end
+        else
+            _G.UNI_Locked = nil
+        end
+    end
+end))
+
+-- // Combat: Ability Spy //
+local RefireLast, DumpCooldownValues
+Groupboxes.Combat_Spy = Tabs.Combat:AddLeftGroupbox("Ability Spy")
+
+Groupboxes.Combat_Spy:AddToggle("LogAbilityArgs", {
+    Text = "Log Ability (F9)", Default = false,
+    Tooltip = "Ability kullanirken ateslenen remote + argumanlari kaydeder (FireServer ve InvokeServer).",
+})
+Groupboxes.Combat_Spy:AddButton({
+    Text = "Son Ability'yi Atesle",
+    DoubleClick = false,
+    Func = function() RefireLast() end,
+})
+Groupboxes.Combat_Spy:AddToggle("SpamLastAbility", {
+    Text = "Spam Son Ability", Default = false,
+})
+Groupboxes.Combat_Spy:AddSlider("SpamInterval", {
+    Text = "Spam Araligi (sn)", Min = 0.2, Max = 5, Default = 1, Rounding = 1, Compact = true,
+})
+Groupboxes.Combat_Spy:AddButton({
+    Text = "Dump Cooldown Degerleri (F9)",
+    DoubleClick = false,
+    Func = function() DumpCooldownValues() end,
+})
+
+local LastRecorded, LastLogAt, InternalFire, HookInstalled = nil, {}, false, false
+
+local function InstallSpy()
+    if HookInstalled then return end
+    if not CheckCompat({ "hookmetamethod", "getnamecallmethod", "newcclosure" }) then
+        Library:Notify("Executor hook desteklemiyor.")
+        return
+    end
+    HookInstalled = true
+    local Old
+    Old = hookmetamethod(game, "__namecall", newcclosure(function(Self, ...)
+        local Method = getnamecallmethod()
+        local IsFire = Method == "FireServer" and typeof(Self) == "Instance" and Self:IsA("RemoteEvent")
+        local IsInvoke = Method == "InvokeServer" and typeof(Self) == "Instance" and Self:IsA("RemoteFunction")
+        if IsFire or IsInvoke then
+            if not InternalFire and Toggles.LogAbilityArgs and ToggleOn("LogAbilityArgs") then
+                local Nm = Method .. " | " .. Self:GetFullName()
+                local Now = tick()
+                if not LastLogAt[Nm] or Now - LastLogAt[Nm] > 2 then
+                    LastLogAt[Nm] = Now
+                    local Args = { ... }
+                    LastRecorded = { Name = Nm, Short = Self.Name, Remote = Self, Args = Args, IsInvoke = IsInvoke }
+                    print("[Abysall-Spy] " .. Nm)
+                    for I, A in ipairs(Args) do
+                        print("  arg" .. I .. " " .. typeof(A) .. " = " .. tostring(A):sub(1, 160))
+                    end
+                    Library:Notify("Kaydedildi: " .. Self.Name)
+                end
+            end
+        end
+        return Old(Self, ...)
+    end))
+end
+OnChange("LogAbilityArgs", function(Value)
+    if Value then
+        InstallSpy()
+        task.delay(0.5, function()
+            local Saved = LastRecorded
+            local T = Instance.new("RemoteEvent")
+            pcall(function() T:FireServer("abysall_hook_test") end)
+            T:Destroy()
+            task.wait(0.3)
+            if LastRecorded and LastRecorded.Args[1] == "abysall_hook_test" then
+                Library:Notify("Hook calisiyor, simdi ability kullan.")
+            else
+                Library:Notify("Hook CALISMIYOR (executor desteklemiyor).")
+            end
+            LastRecorded = Saved
+        end)
+    end
+end)
+
+RefireLast = function()
+    if not LastRecorded or not LastRecorded.Remote then
+        Library:Notify("Once log acikken ability kullan.")
+        return
+    end
+    local R, Args = LastRecorded.Remote, LastRecorded.Args
+    InternalFire = true
+    local Ok, Err = pcall(function()
+        if LastRecorded.IsInvoke then
+            local Ret = { R:InvokeServer(table.unpack(Args)) }
+            print("[Abysall-Spy] invoke dondu, " .. #Ret .. " deger")
+        else
+            R:FireServer(table.unpack(Args))
+        end
+    end)
+    InternalFire = false
+    if Ok then
+        Library:Notify("Ateslendi: " .. tostring(LastRecorded.Short))
+    else
+        Library:Notify("Hata: " .. tostring(Err):sub(1, 80))
+    end
+end
+
+DumpCooldownValues = function()
+    local Char = LocalPlayer.Character
+    local function Scan(Root, Tag)
+        local OkAttr, Attrs = pcall(function() return Root:GetAttributes() end)
+        if OkAttr and type(Attrs) == "table" then
+            for Key, Val in pairs(Attrs) do
+                if LooksLikeCooldown(Key) then
+                    print("[Abysall-CD] attr " .. Tag .. "." .. tostring(Key) .. " = " .. tostring(Val))
+                end
+            end
+        end
+        for _, Desc in ipairs(Root:GetDescendants()) do
+            if (Desc:IsA("NumberValue") or Desc:IsA("IntValue")) and LooksLikeCooldown(Desc.Name) then
+                print("[Abysall-CD] value " .. Desc:GetFullName() .. " = " .. tostring(Desc.Value))
+            end
+        end
+    end
+    if Char then Scan(Char, "char") end
+    Scan(LocalPlayer, "player")
+    local Gui = LocalPlayer:FindFirstChild("PlayerGui")
+    if Gui then Scan(Gui, "gui") end
+    Library:Notify("Cooldown degerleri F9'da.")
+end
+
+local SpamAcc = 0
+TrackConn(Services.RunService.Heartbeat:Connect(function(Delta)
+    if Toggles.SpamLastAbility and ToggleOn("SpamLastAbility") and LastRecorded then
+        SpamAcc = SpamAcc + Delta
+        local Interval = (Options.SpamInterval and Options.SpamInterval.Value) or 1
+        if SpamAcc >= Interval then
+            SpamAcc = 0
+            RefireLast()
+        end
+    else
+        SpamAcc = 0
+    end
+end))
+
+-- // Combat: Remote araclari //
+Groupboxes.Combat_Remotes = Tabs.Combat:AddRightGroupbox("Remotes")
+
+Groupboxes.Combat_Remotes:AddButton({
+    Text = "Dump Remotes (F9'a bas)",
+    DoubleClick = false,
+    Func = function()
+        for _, Obj in pairs(Services.ReplicatedStorage:GetDescendants()) do
+            if Obj:IsA("RemoteEvent") or Obj:IsA("RemoteFunction") then
+                print("[Abysall-Dump] " .. Obj.ClassName .. " | " .. Obj:GetFullName())
+            end
+        end
+        Library:Notify("Dump konsola yazildi (F9).")
+    end
+})
+
+local function FindRemote(Name)
+    local Found = Services.ReplicatedStorage:FindFirstChild(Name, true)
+    if Found and (Found:IsA("RemoteEvent") or Found:IsA("RemoteFunction")) then
+        return Found
+    end
+    return nil
+end
+
+Groupboxes.Combat_Remotes:AddInput("FireRemoteName", {
+    Text = "Remote Adi", Default = "", Numeric = false, Finished = false,
+    Placeholder = "Orn: OpenBags",
+})
+Groupboxes.Combat_Remotes:AddButton({
+    Text = "Isimle Atesle (argsiz)",
+    DoubleClick = false,
+    Func = function()
+        local Name = Options.FireRemoteName and Options.FireRemoteName.Value or ""
+        if Name == "" then
+            Library:Notify("Once remote adi yaz.")
+            return
+        end
+        local R = FindRemote(Name)
+        if not R then
+            Library:Notify("Bulunamadi: " .. Name)
+            return
+        end
+        InternalFire = true
+        local Ok, Err = pcall(function()
+            if R:IsA("RemoteEvent") then R:FireServer() else R:InvokeServer() end
+        end)
+        InternalFire = false
+        if Ok then Library:Notify("Ateslendi: " .. Name)
+        else Library:Notify("Hata: " .. tostring(Err):sub(1, 80)) end
+    end
+})
+
+-- // Visuals: Player ESP //
+Groupboxes.Visuals_ESP = Tabs.Visuals:AddLeftGroupbox("Player ESP")
+
+Groupboxes.Visuals_ESP:AddToggle("PlayerESP", {
+    Text = "Player ESP", Default = false,
+})
+Toggles.PlayerESP:AddColorPicker("PlayerESPColor", {
+    Text = "ESP Rengi", Default = Color3.fromRGB(255, 0, 0), Transparency = 0,
+})
+Groupboxes.Visuals_ESP:AddToggle("ESPTeamCheck", {
+    Text = "Team Check", Default = true,
+})
+Groupboxes.Visuals_ESP:AddToggle("ESPShowHealth", {
+    Text = "Show Health", Default = true, Tooltip = "Ismin yaninda cani gosterir.",
+})
+
+local function ShouldESP(Player)
+    if Player == LocalPlayer then return false end
+    if not Player.Character then return false end
+    if Toggles.ESPTeamCheck and ToggleOn("ESPTeamCheck") then
+        if LocalPlayer.Team ~= nil and Player.Team ~= nil and Player.Team == LocalPlayer.Team then
+            return false
+        end
+    end
+    return true
+end
+
+local HealthConns = {}
+local function TrackHealth(Player, Char)
+    local Old = HealthConns[Char]
+    if Old then pcall(function() Old:Disconnect() end) HealthConns[Char] = nil end
+    if not (Toggles.ESPShowHealth and ToggleOn("ESPShowHealth")) then
+        Abysall.ESPLibrary:UpdateObjectText(Char, Player.Name)
+        return
+    end
+    local Hum = Char:FindFirstChildOfClass("Humanoid")
+    if not Hum then return end
+    local function Refresh()
+        if Hum.Parent then
+            Abysall.ESPLibrary:UpdateObjectText(Char, Player.Name .. " [" .. math.floor(Hum.Health + 0.5) .. "]")
+        end
+    end
+    Refresh()
+    local Conn = Hum.HealthChanged:Connect(Refresh)
+    HealthConns[Char] = Conn
+    TrackConn(Conn)
+    Char.Destroying:Once(function()
+        local C = HealthConns[Char]
+        if C then pcall(function() C:Disconnect() end) HealthConns[Char] = nil end
+    end)
+end
+
+local function AddPlayerESP(Data)
+    pcall(function()
+        Abysall.ESPLibrary:AddESP(Data)
+        if Data.Player and Data.Object then TrackHealth(Data.Player, Data.Object) end
+        Data.Object.Destroying:Once(function()
+            if Abysall then Abysall.ESPLibrary:RemoveESP(Data.Object) end
+        end)
+    end)
+end
+
+OnChange("ESPShowHealth", function()
+    for _, Player in pairs(Services.Players:GetPlayers()) do
+        if Player ~= LocalPlayer and Player.Character and ToggleOn("PlayerESP") and ShouldESP(Player) then
+            TrackHealth(Player, Player.Character)
+        end
+    end
+end)
+
+OnChange("PlayerESP", function(Value)
+    for _, Player in pairs(Services.Players:GetPlayers()) do
+        if Player.Character then
+            if Value and ShouldESP(Player) then
+                AddPlayerESP({ Object = Player.Character, Text = Player.Name, Color = Options.PlayerESPColor.Value, Player = Player })
+            else
+                Abysall.ESPLibrary:RemoveESP(Player.Character)
+            end
+        end
+    end
+end)
+Options.PlayerESPColor:OnChanged(function(Value)
+    for _, Player in pairs(Services.Players:GetPlayers()) do
+        if Player.Character then
+            Abysall.ESPLibrary:UpdateObjectColor(Player.Character, Value)
+        end
+    end
+end)
+
+TrackConn(Services.Players.PlayerAdded:Connect(function(Player)
+    Player.CharacterAdded:Connect(function(Char)
+        task.wait(1)
+        if ToggleOn("PlayerESP") and ShouldESP(Player) then
+            AddPlayerESP({ Object = Char, Text = Player.Name, Color = Options.PlayerESPColor.Value, Player = Player })
+        end
+    end)
+end))
+for _, Player in pairs(Services.Players:GetPlayers()) do
+    if Player ~= LocalPlayer then
+        Player.CharacterAdded:Connect(function(Char)
+            task.wait(1)
+            if ToggleOn("PlayerESP") and ShouldESP(Player) then
+                AddPlayerESP({ Object = Char, Text = Player.Name, Color = Options.PlayerESPColor.Value, Player = Player })
+            end
+        end)
+    end
+end
+
+Groupboxes.Visuals_Settings = Tabs.Visuals:AddRightGroupbox("ESP Settings")
+Groupboxes.Visuals_Settings:AddToggle("ESPShowDistance", { Text = "Show Distance", Default = true })
+Groupboxes.Visuals_Settings:AddToggle("ESPTracers", { Text = "Tracers", Default = false })
+Groupboxes.Visuals_Settings:AddToggle("ESPArrows", { Text = "Arrows", Default = false })
+OnChange("ESPShowDistance", function(V) Abysall.ESPLibrary:SetShowDistance(V) end)
+OnChange("ESPTracers", function(V) Abysall.ESPLibrary:SetTracers(V) end)
+OnChange("ESPArrows", function(V) Abysall.ESPLibrary:SetArrows(V) end)
+Abysall.ESPLibrary:SetShowDistance(true)
+
+-- // Misc: hareket //
+Groupboxes.Misc_Move = Tabs.Misc:AddLeftGroupbox("Movement")
+Groupboxes.Misc_Move:AddSlider("WalkSpeedVal", {
+    Text = "WalkSpeed", Min = 16, Max = 200, Default = 16, Rounding = 0, Compact = true,
+})
+Groupboxes.Misc_Move:AddToggle("WalkSpeedOn", { Text = "Speed", Default = false })
+Groupboxes.Misc_Move:AddToggle("InfiniteJump", {
+    Text = "Infinite Jump", Default = false,
+})
+Groupboxes.Misc_Move:AddDivider()
+Groupboxes.Misc_Move:AddToggle("Fly", {
+    Text = "Fly", Default = false, Tooltip = "Serbest ucus.",
+})
+Toggles.Fly:AddKeyPicker("FlyKey", {
+    Text = "Fly", Default = "F", Mode = "Toggle", SyncToggleState = true,
+})
+Groupboxes.Misc_Move:AddSlider("FlySpeed", {
+    Text = "Fly Speed", Min = 0, Max = 200, Default = 50, Rounding = 0, Compact = true,
+})
+Groupboxes.Misc_Move:AddToggle("Noclip", {
+    Text = "Noclip", Default = false, Tooltip = "Duvardan gec.",
+})
+Toggles.Noclip:AddKeyPicker("NoclipKey", {
+    Text = "Noclip", Default = "N", Mode = "Toggle", SyncToggleState = true,
+})
+
+local FlyBody = Instance.new("BodyVelocity")
+FlyBody.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+FlyBody.Velocity = Vector3.zero
+
+local function FlyRoot()
+    local Char = LocalPlayer.Character
+    if not Char then return nil end
+    return Char:FindFirstChild("HumanoidRootPart") or Char:FindFirstChild("UpperTorso") or Char:FindFirstChild("Head")
+end
+
+local function FlyDir()
+    local Char = LocalPlayer.Character
+    local Hum = Char and Char:FindFirstChildOfClass("Humanoid")
+    if not Hum or Hum.MoveDirection == Vector3.zero or not Camera then
+        return Vector3.zero
+    end
+    local LookFlat = Vector3.new(Camera.CFrame.LookVector.X, 0, Camera.CFrame.LookVector.Z)
+    if LookFlat.Magnitude < 0.01 then LookFlat = Vector3.new(0, 0, -1) end
+    local FlatFrame = CFrame.new(Camera.CFrame.Position, Camera.CFrame.Position + LookFlat)
+    local Vel = (Camera.CFrame * CFrame.new(FlatFrame:VectorToObjectSpace(Hum.MoveDirection))).Position - Camera.CFrame.Position
+    if Vel.Magnitude < 0.01 then return Vector3.zero end
+    return Vel.Unit
+end
+
+TrackConn(Services.RunService.RenderStepped:Connect(function()
+    local R = FlyRoot()
+    if Toggles.Fly and ToggleOn("Fly") and R then
+        FlyBody.Parent = R
+        FlyBody.Velocity = FlyDir() * ((Options.FlySpeed and Options.FlySpeed.Value) or 50)
+    elseif FlyBody.Parent then
+        FlyBody.Velocity = Vector3.zero
+        FlyBody.Parent = nil
+    end
+end))
+
+TrackConn(Services.RunService.Stepped:Connect(function()
+    if Toggles.Noclip and ToggleOn("Noclip") and LocalPlayer.Character then
+        for _, P in ipairs(LocalPlayer.Character:GetDescendants()) do
+            if P:IsA("BasePart") and P.CanCollide then
+                P.CanCollide = false
+            end
+        end
+    end
+end))
+
+Groupboxes.Misc_World = Tabs.Misc:AddRightGroupbox("World")
+Groupboxes.Misc_World:AddToggle("Fullbright", {
+    Text = "Fullbright", Default = false, Tooltip = "Haritayi aydinlatir.",
+})
+Groupboxes.Misc_World:AddToggle("AntiAFK", {
+    Text = "Anti AFK", Default = false, Tooltip = "Idle kick'i engeller.",
+})
+
+local OldLight = {}
+local function ApplyBright(On)
+    local L = Services.Lighting
+    if On then
+        if OldLight.B == nil then
+            OldLight = { B = L.Brightness, C = L.ClockTime, G = L.GlobalShadows, F = L.FogEnd, A = L.Ambient }
+        end
+        L.Brightness = 2
+        L.ClockTime = 14
+        L.GlobalShadows = false
+        L.FogEnd = 100000
+        L.Ambient = Color3.new(1, 1, 1)
+    elseif OldLight.B ~= nil then
+        L.Brightness = OldLight.B
+        L.ClockTime = OldLight.C
+        L.GlobalShadows = OldLight.G
+        L.FogEnd = OldLight.F
+        L.Ambient = OldLight.A
+    end
+end
+OnChange("Fullbright", function(V) pcall(ApplyBright, V) end)
+
+local BrightAcc = 0
+TrackConn(Services.RunService.Heartbeat:Connect(function(Delta)
+    if Toggles.Fullbright and ToggleOn("Fullbright") then
+        BrightAcc = BrightAcc + Delta
+        if BrightAcc >= 2 then
+            BrightAcc = 0
+            pcall(ApplyBright, true)
+        end
+    else
+        BrightAcc = 0
+    end
+end))
+
+local AFKConn = nil
+OnChange("AntiAFK", function(Value)
+    if Value then
+        local Ok, VU = pcall(function() return game:GetService("VirtualUser") end)
+        if Ok and VU then
+            AFKConn = LocalPlayer.Idled:Connect(function()
+                pcall(function()
+                    VU:CaptureController()
+                    VU:ClickButton2(Vector2.new())
+                end)
+            end)
+            TrackConn(AFKConn)
+        else
+            Library:Notify("VirtualUser yok.")
+        end
+    elseif AFKConn then
+        pcall(function() AFKConn:Disconnect() end)
+        AFKConn = nil
+    end
+end)
+
+TrackConn(Services.RunService.RenderStepped:Connect(function()
+    if Toggles.WalkSpeedOn and ToggleOn("WalkSpeedOn") and LocalPlayer.Character then
+        local Hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if Hum then Hum.WalkSpeed = Options.WalkSpeedVal.Value end
+    end
+end))
+
+TrackConn(Services.UserInputService.JumpRequest:Connect(function()
+    if Toggles.InfiniteJump and ToggleOn("InfiniteJump") and LocalPlayer.Character then
+        local Hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if Hum then Hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+    end
+end))
+
+Library:OnUnload(function()
+    for _, Conn in ipairs(Connections) do
+        pcall(function() Conn:Disconnect() end)
+    end
+    -- ESP cizimleri kalmasin
+    pcall(function() Abysall.ESPLibrary:Unload() end)
+    -- Fly dur
+    pcall(function()
+        FlyBody.Velocity = Vector3.zero
+        FlyBody.Parent = nil
+    end)
+    -- Noclip + speed geri al
+    pcall(function()
+        local Char = LocalPlayer.Character
+        local Hum = Char and Char:FindFirstChildOfClass("Humanoid")
+        if Hum then Hum.WalkSpeed = 16 end
+        if Char then
+            for _, P in ipairs(Char:GetDescendants()) do
+                if P:IsA("BasePart") and P.Name ~= "HumanoidRootPart" then
+                    P.CanCollide = true
+                end
+            end
+        end
+    end)
+    -- Isiklari geri al
+    pcall(ApplyBright, false)
+    -- FOV dairesi kalmasin
+    pcall(function()
+        if _G.UNI_FOVCircle then _G.UNI_FOVCircle:Remove() end
+        _G.UNI_FOVCircle = nil
+        _G.UNI_Locked = nil
+    end)
+    if AFKConn then pcall(function() AFKConn:Disconnect() end) AFKConn = nil end
+    if type(Abysall.AddonDisablers) == "table" then
+        for _, D in ipairs(Abysall.AddonDisablers) do
+            pcall(function() if D.Fn then D.Fn() end end)
+        end
+        Abysall.AddonDisablers = nil
+    end
+    pcall(function() getgenv().abysall = nil end)
+    pcall(function() getgenv().mspaint = nil end)
+    getgenv().Abysall = nil
+end)
+
+Abysall.Interface.ApplySettingsTab(Window)
+Abysall.Interface.ApplyAddons(Window, "universal")
+Library:Notify("Universal mod yuklendi (" .. math.floor((tick() - LoadStart) * 100) / 100 .. "s).")
